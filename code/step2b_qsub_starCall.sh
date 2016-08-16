@@ -8,7 +8,7 @@ rootdir=/hp_shares/mgandal/projects/TSC_MIA_Silva
 
 name=$1
 
-${STARcall} \
+$STARcall \
 --runThreadN 2 \
 --genomeDir ${genomeDir} \
 --outFileNamePrefix ${rootdir}/data/STAR_sam/$name \
