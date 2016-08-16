@@ -8,7 +8,8 @@ genomeFA=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Sequence/GRCm38
 genomeDir=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Sequence/STAR_index
 gtfFile=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.gtf
 rootdir=/hp_shares/mgandal/projects/TSC_MIA_Silva
-refFlat=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.refFlat.txt
+refFlat=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.refFlat.txt.gz
+refBed=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.bed
 
 name=$1
 
@@ -34,14 +35,14 @@ $jav -Xmx4g -jar $pic ReorderSam \
   REFERENCE=$genomeFA ## Reorder the .bam file according to the reference at hand
 
 $jav -Xmx4g -jar $pic CollectAlignmentSummaryMetrics \
-  REFERENCE_SEQUENCE=${refgenome} \
+  REFERENCE_SEQUENCE=${genomeFA} \
   INPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
   OUTPUT=${rootdir}/data/STAR_bam/$name/alignment_stats.txt \
   ASSUME_SORTED=false \
   ADAPTER_SEQUENCE=null ## Collect alignment metrics if the file is not present
 
 $jav -Xmx4g -jar $pic CollectRnaSeqMetrics \
-  REFERENCE_SEQUENCE=${refgenome} \
+  REFERENCE_SEQUENCE=${genomeFA} \
   INPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
   OUTPUT=${rootdir}/data/STAR_bam/$name/rnaseq_stats.txt \
   STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND \
@@ -80,3 +81,29 @@ $jav -Xmx4g -jar $pic BuildBamIndex \
 
 rm ${rootdir}/data/STAR_bam/$name/reordered_duplication_marked_reads.bam
 rm ${rootdir}/data/STAR_bam/$name/reordered_reads.bam
+
+
+
+bam_stat.py -i ${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam > ${rootdir}/data/STAR_bam/$name/rseqc_bamstat.txt
+clipping_profile.py \
+  -i ${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+  -s "PE" -o ${rootdir}/data/STAR_bam/$name/clipping_profile
+
+geneBody_coverage.py \
+-i ${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+-r $refBed -o ${rootdir}/data/STAR_bam/$name/gene_body
+
+inner_distance.py \
+-i ${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+-o ${rootdir}/data/STAR_bam/$name/inner_distance \
+-r $refBed
+
+read_distribution.py
+-i ${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam
+-r
+
+#read_duplication.py -i Pairend_nonStrandSpecific_36mer_Human_hg19.bam -o output
+
+#read_GC.py -i Pairend_nonStrandSpecific_36mer_Human_hg19.bam -o output
+
+#tin.py -i -r
