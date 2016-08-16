@@ -8,7 +8,7 @@ genomeFA=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Sequence/GRCm38
 genomeDir=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Sequence/STAR_index
 gtfFile=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.gtf
 rootdir=/hp_shares/mgandal/projects/TSC_MIA_Silva
-
+refFlat=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.refFlat.txt
 
 name=$1
 
@@ -26,10 +26,57 @@ $STAR_call \
 #Samtools sorting and indexing of BAM file
 #$SAMTOOLS_call sort ${rootdir}/data/STAR_sam/$name -n -o ${rootdir}/data/STAR_bam/${name}.nameSorted.bam
 $SAMTOOLS_call index ${rootdir}/data/STAR_bam/$name/${name}.Aligned.sortedByCoord.out.bam
-$SAMTOOLS_call idxstats ${rootdir}/data/STAR_bam/$name/${name}.Aligned.sortedByCoord.out.bam
 
 #PicardTools RNA alignment & quality metrics
 $jav -Xmx4g -jar $pic ReorderSam \
   INPUT=${rootdir}/data/STAR_bam/$name/${name}.Aligned.sortedByCoord.out.bam \
   OUTPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
   REFERENCE=$genomeFA ## Reorder the .bam file according to the reference at hand
+
+$jav -Xmx4g -jar $pic CollectAlignmentSummaryMetrics \
+  REFERENCE_SEQUENCE=${refgenome} \
+  INPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+  OUTPUT=${rootdir}/data/STAR_bam/$name/alignment_stats.txt \
+  ASSUME_SORTED=false \
+  ADAPTER_SEQUENCE=null ## Collect alignment metrics if the file is not present
+
+$jav -Xmx4g -jar $pic CollectRnaSeqMetrics \
+  REFERENCE_SEQUENCE=${refgenome} \
+  INPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+  OUTPUT=${rootdir}/data/STAR_bam/$name/rnaseq_stats.txt \
+  STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND \
+  REF_FLAT=$refFlat \
+  ASSUME_SORTED=false ## Collect sequencing metrics if the file is not present
+
+$jav -Xmx4g -jar $pic CollectGcBiasMetrics \
+  REFERENCE_SEQUENCE=${genomeFA} \
+  INPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+  OUTPUT=${rootdir}/data/STAR_bam/$name/gcbias_stats.txt \
+  ASSUME_SORTED=false \
+  CHART_OUTPUT=${rootdir}/data/STAR_bam/$name/gcbias_chart.pdf \
+  SUMMARY_OUTPUT=${rootdir}/data/STAR_bam/$name/gcbias_summary.txt
+
+$jav -Xmx4g -jar $pic CollectInsertSizeMetrics \
+  REFERENCE_SEQUENCE=${genomeFA} \
+  INPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+  OUTPUT=${rootdir}/data/STAR_bam/$name/insert_size_metrics.txt \
+  ASSUME_SORTED=false \
+  HISTOGRAM_FILE=${rootdir}/data/STAR_bam/$name/insert_size_histogram.pdf
+
+$jav -Xmx4g -jar $pic MarkDuplicates \
+  INPUT=${rootdir}/data/STAR_bam/$name/${name}.reordered_reads.bam \
+  METRICS_FILE=${rootdir}/data/STAR_bam/$name/duplication_stats.txt \
+  ASSUME_SORTED=false \
+  OUTPUT=${rootdir}/data/STAR_bam/$name/reordered_duplication_marked_reads.bam \
+  REMOVE_DUPLICATES=TRUE
+
+$jav -Xmx4g -jar $pic SortSam \
+  INPUT=${rootdir}/data/STAR_bam/$name/reordered_duplication_marked_reads.bam \
+  OUTPUT=${rootdir}/data/STAR_bam/$name/reordered_duplication_marked_reads_sorted.bam \
+  SORT_ORDER=coordinate ## Sort the de-duplicated file
+
+$jav -Xmx4g -jar $pic BuildBamIndex \
+  INPUT=${rootdir}/data/STAR_bam/$name/reordered_duplication_marked_reads_sorted.bam
+
+rm ${rootdir}/data/STAR_bam/$name/reordered_duplication_marked_reads.bam
+rm ${rootdir}/data/STAR_bam/$name/reordered_reads.bam
