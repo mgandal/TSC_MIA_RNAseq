@@ -8,10 +8,10 @@ rootdir=/hp_shares/mgandal/projects/TSC_MIA_Silva
 
 name=$1
 
-$STARcall \
+$STAR_call \
 --runThreadN 2 \
 --genomeDir ${genomeDir} \
 --outFileNamePrefix ${rootdir}/data/STAR_sam/$name \
 --readFilesCommand gunzip -c \
---readFilesIn ${rootdir}/data/fastq_merged/${name}_R1_001.fastq.gz.fastq.gz ${rootdir}/data/fastq_merged/${name}_R2_001.fastq.gz.fastq.gz \
+--readFilesIn ${rootdir}/data/fastq_merged/${name}_R1_001.fastq.gz ${rootdir}/data/fastq_merged/${name}_R2_001.fastq.gz \
 --outSAMtype BAM Unsorted SortedByCoordinate
