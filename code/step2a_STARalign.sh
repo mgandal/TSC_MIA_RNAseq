@@ -22,7 +22,7 @@ qsub \
   -cwd -V -S /bin/bash -N Mike -q geschwind.q \
   -o ${rootdir}/code/log \
   -e ${rootdir}/code/log \
-  -l h_rt=24:00:00,h_data=60G -pe shared 8  \
+  -l h_rt=24:00:00,h_data=40G -pe shared 2  \
   ${rootdir}/code/step2b_qsub_starCall.sh ${name}
 
 done
