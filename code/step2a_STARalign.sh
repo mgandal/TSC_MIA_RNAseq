@@ -17,8 +17,6 @@ cd ${rootdir}/data/fastq_merged
 for file in *_R1_001.fastq.gz; do
 
 name=`basename $file _R1_001.fastq.gz`
-if ! [ -s ${rootdir}/data/STAR_sam/${name}*.sam ]; then
-   echo ${name}_R1_001.fastq.gz ${name}_R1_002.fastq.gz
-   qsub -o ${rootdir}/code/log -e ${rootdir}/code/log -l h_rt=8:00:00,h_data=25G,highmem -pe shared 4  ${rootdir}/code/step2b_qsub_starCall.sh ${name}
+qsub -o ${rootdir}/code/log -e ${rootdir}/code/log -l h_rt=24:00:00,h_data=60G -pe shared 8  ${rootdir}/code/step2b_qsub_starCall.sh ${name}
 fi
 done

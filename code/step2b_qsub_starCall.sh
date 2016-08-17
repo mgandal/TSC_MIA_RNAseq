@@ -25,7 +25,6 @@ $STAR_call \
 --outSAMtype BAM Unsorted SortedByCoordinate
 
 #Samtools sorting and indexing of BAM file
-#$SAMTOOLS_call sort ${rootdir}/data/STAR_sam/$name -n -o ${rootdir}/data/STAR_bam/${name}.nameSorted.bam
 $SAMTOOLS_call index ${rootdir}/data/STAR_bam/$name/${name}.Aligned.sortedByCoord.out.bam
 
 #PicardTools RNA alignment & quality metrics
