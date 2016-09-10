@@ -1,21 +1,24 @@
 #!/bin/bash
 
-SAMTOOLS_call=/home/mgandal/bin/samtools-1.3/samtools
-STAR_call=/home/mgandal/bin/STAR-2.5.2a/bin/Linux_x86_64/STAR
-jav=/share/apps/jre1.8.0_92/bin/java
-pic=/home/mgandal/bin/picard.jar
-genomeFA=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Sequence/GRCm38.p4.genome.fa
-genomeDir=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Sequence/STAR_index
-gtfFile=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.gtf
-rootdir=/hp_shares/mgandal/projects/TSC_MIA_Silva
-refFlat=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.refFlat.txt.gz
-refBed=/hp_shares/mgandal/datasets/refGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.bed
+SAMTOOLS_call=/u/home/g/gandalm/project-geschwind/bin/samtools-1.3/samtools
+STAR_call=/u/home/g/gandalm/bin/STAR-2.5.2a/bin/Linux_x86_64/STAR
+jav=/u/local/apps/java/jre1.8.0_77/bin/java
+pic=/u/home/g/gandalm/project-geschwind/bin/picard-2.6.2.jar
+genomeFA=/u/home/g/gandalm/project-geschwind/RefGenome/mmul10/GencodeM10/Sequence/GRCm38.p4.genome.fa
+genomeDir=/u/home/g/gandalm/project-geschwind/RefGenome/mmul10/GencodeM10/Sequence/STAR_index
+gtfFile=/u/home/g/gandalm/project-geschwind/RefGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.gtf
+rootdir=/u/home/g/gandalm/project-geschwind/TSC_MIA_Silva
+refFlat=/u/home/g/gandalm/project-geschwind/RefGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.refFlat.txt.gz
+refBed=/u/home/g/gandalm/project-geschwind/RefGenome/mmul10/GencodeM10/Annotation/gencode.vM10.annotation.bed
+
 
 name=$1
 
 if [ ! -s $rootdir/data/STAR_bam/$name ]; then mkdir $rootdir/data/STAR_bam/$name; fi
 
 #STAR Alignment to Genome
+if [ ! -s ${rootdir}/data/STAR_bam/$name/${name}.Aligned.sortedByCoord.out.bam ]; then
+echo "starting STAR alignment"
 $STAR_call \
 --runThreadN 2 \
 --genomeDir ${genomeDir} \
@@ -23,6 +26,8 @@ $STAR_call \
 --readFilesCommand gunzip -c \
 --readFilesIn ${rootdir}/data/fastq_merged/${name}_R1_001.fastq.gz ${rootdir}/data/fastq_merged/${name}_R2_001.fastq.gz \
 --outSAMtype BAM Unsorted SortedByCoordinate
+fi
+
 
 #Samtools sorting and indexing of BAM file
 $SAMTOOLS_call index ${rootdir}/data/STAR_bam/$name/${name}.Aligned.sortedByCoord.out.bam
