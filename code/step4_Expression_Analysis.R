@@ -2,40 +2,86 @@
 options(stringsAsFactors = F)
 rm(list=ls()) #Clear workspace
 
-setwd("/Users/mgandal/Documents/Github/TSC_MIA_RNAseq")
+setwd("/Users/sepid/Documents/Geschwind Lab/TSC_MIA_RNAseq")
+
 
 #Install Necessary Packages
-#-------------------------
 #install.packages()   #Only for package on CRAN repository
 #source("http://bioconductor.org/biocLite.R") #Packages on Bioconductor
-#biocLite(c("DESeq2", "CQN"))
+#biocLite(c("DESeq2", "cq"))
+biocLite(c("WGCNA", "biomaRt", "ggplot2", "reshape", "limma", "edgeR", "gProfileR", "gplots", "venneuler", "nlme"))
 
 #Load Libraries
-library(DESeq2); library(cqn)
+library(WGCNA); library(DESeq2); library(biomaRt); library(ggplot2); library(reshape); library(cqn); library(limma); library(edgeR)
+library(gProfileR); library(gplots); library(venneuler); library(nlme)
 
 
 
 #Import Raw Data
-load("./data/HTseqCounts.RData")
-#datExpr
-
+#Meta Data
 datMeta$Genotype = "Het"
 datMeta$Genotype[datMeta$Subject %in% c(442,466,469)] = "WT"
 datMeta$Treatment = "PolyIC"
 datMeta$Treatment[datMeta$Subject %in% c(420, 455, 447)] = "Saline"
 datMeta$Group = as.factor(paste(datMeta$Genotype, "_", datMeta$Treatment,sep=""))
+#table(datMeta$Group) #tabulates number of subjects in each group
 
-table(datMeta$Group)
+#Expression Data
+gene_ens <- rownames(datExpr) 
+seq_depth <- apply(datExpr,2,sum)
+datSeq <- data.frame(seq_depth)
+colnames(datSeq) = c("SeqDepth")
+datMeta$SeqDepth = seq_depth
+
+#removes numbers following decimal from ensembl ID
+#our data has "MUS" as species code; ensembl is using "MMU"
+gene_ens_truncated = character(length=length(gene_ens))
+for (i in 1:length(gene_ens)){
+  s <- gene_ens[i]
+  s <- paste(substr(s, 1, 3), "MMU", substr(s, 7, nchar(s)), sep="") #replaces "MUS" with "MMU"
+  truncated <- substr(s, 1, 18)
+  gene_ens_truncated[i] <- truncated
+}
+
+#Sequencing Statistics from Picard
+#######datSeq
+datSeq2 = read.delim("./data/QC/RNAseqQC.txt", sep = "")
+datSeq2$SeqDepth = seq_depth
+colnames(datSeq)[1] = "Sample"
+datSeq2$Sample = datMeta$Sample
 
 
 
+#Annotate Probes
+# bm = useMart("ensembl", "mmusculus_gene_ensembl")
+# a = listAttributes(bm); f= listFilters(bm)
+# bm1 = getBM(attributes = c("ensembl_transcript_id", "ensembl_gene_id", "external_gene_name", "hsapiens_homolog_ensembl_gene", "chromosome_name", "start_position", "end_position", "percentage_gc_content"),
+#       filters = "ensembl_gene_id", 
+#       values=gene_ens_truncated,mart=bm)
+# #bmall = getBM(attributes = c("ensembl_transcript_id", "ensembl_gene_id", "external_gene_name", "hsapiens_homolog_ensembl_gene", "chromosome_name", "start_position", "end_position", "percentage_gc_content"),mart=bm)
+# idx = match(gene_ens_truncated,bm1$ensembl_gene_id)
+# datProbes = bm1[idx,]
+# save(datProbes, file="./data/datProbes.rda")
 
 
+#Load Annotated Probes
+load("./data/datProbes.rda")
+idx = match(gene_ens_truncated, datProbes$ensembl_gene_id)
+datProbes = datProbes[idx,] 
+#Does it make sense for a match to not be found in 205 cases?
 
+
+#Filter Genes
+to_keep = apply(datExpr>10, 1, sum)
+to_keep = to_keep >= 0.5*ncol(datExpr) #At least 10 counts in 50% of samples
+table(to_keep)
+datExpr = datExpr[to_keep,]
+#datProbes = datProbes[to_keep,]
 
 
 
 ###ADAPT MONKEY CODE FROM BELOW
+
 
 
 ## NHP_MIA-Step1-ImportData.R
