@@ -4,7 +4,6 @@ rm(list=ls()) #Clear workspace
 
 setwd("/Users/sepid/Documents/Geschwind Lab/TSC_MIA_RNAseq/code")
 
-pdf(file="TSC graphs.pdf")
 
 
 #Install Necessary Packages
@@ -83,7 +82,6 @@ if(annotate){
        values=gene_ens_truncated,mart=bm)
   idx = match(gene_ens_truncated,bm1$ensembl_gene_id)
   datProbes = bm1[idx,]
-  save(datProbes, file="./data/datProbes.rda")
 }
 
 #Load Annotated Probes
@@ -194,8 +192,6 @@ for (reg_ind in 1:length(regions)){
   res.genotype$hsapiens_homolog=datProbes$hsapiens_homolog_ensembl_gene; res.genotype$gene =datProbes$external_gene_name
   res.treatment$hsapiens_homolog=datProbes$hsapiens_homolog_ensembl_gene; res.treatment$gene =datProbes$external_gene_name
   
-  write.csv(res.genotype, file = paste("res.genotype", curr_reg, ".csv"))
-  write.csv(res.treatment, file = paste("res.treatment", curr_reg, ".csv"))
   
   res = list(res.genotype, res.treatment)
   
@@ -235,8 +231,6 @@ for (reg_ind in 1:length(regions)){
     dge.down = dge[dge$log2FoldChange<0,]; 
     dge.down = dge.down[order(dge.down$log2FoldChange),]
     
-    write.csv(dge.up, file = paste("dge.up", curr_reg, contrast, ".csv"))
-    write.csv(dge.down, file = paste("dge.down", curr_reg, contrast, ".csv"))
     
     
     #downregulated GO
@@ -269,13 +263,6 @@ for (reg_ind in 1:length(regions)){
     
     
     if (nrow(go) > 0){
-    par(oma=c(0,15,0,0));
-    ttl = paste("GO upregulated", contrast, curr_reg)
-    n_go_show = min(10, dim(dge.up)[1])
-    bp = barplot(-log10(as.numeric(na.omit(go$p.value[n_go_show:1]))), main=ttl, horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
-    axis(2,at=bp,labels=na.omit(go$term.name[n_go_show:1]),tick=FALSE,las=2,cex.axis=.7);
-    abline(v=-log10(0.05), col="red", lwd=2,lty=2)
-  }
     
     
     #tally up total upregulated and downregulated
@@ -284,13 +271,11 @@ for (reg_ind in 1:length(regions)){
     
    if (contrast == "genotype") {
       tally_genotype[reg_ind,] <- c(n_up, n_down)
-   } else if (contrast == "treatment"){
       tally_treatment[reg_ind,] <- c(n_up, n_down)
    }
   }
 }
 
-write.csv(tally_genotype, file = "tally_genotype.csv"); write.csv(tally_treatment, file = "tally_treatment.csv")
 
 dev.off()
 
@@ -304,6 +289,7 @@ datExpr.vst = assay(datExpr.vst)
 
 multiExpr = vector(mode="list", length=1)
 multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
+<<<<<<< HEAD
 #multiExpr[[2]] = list(data=as.data.frame(t(dE[,!datMeta$Region=="HC"])), meta = datMeta.cortex)
 #multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
 #multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="DLPFC"])), meta=datMeta.pfc)
