@@ -4,6 +4,7 @@ rm(list=ls()) #Clear workspace
 
 setwd("/Users/sepid/Documents/Geschwind Lab/TSC_MIA_RNAseq/code")
 
+pdf(file="../figures/TSC graphs.pdf")
 
 
 #Install Necessary Packages
@@ -18,6 +19,7 @@ library(gProfileR); library(gplots); library(venneuler); library(nlme)
 library(limma)
 library(gridExtra)
 library(gProfileR)
+
 
 
 load("../data/HTseqCounts.RData")
@@ -82,6 +84,7 @@ if(annotate){
        values=gene_ens_truncated,mart=bm)
   idx = match(gene_ens_truncated,bm1$ensembl_gene_id)
   datProbes = bm1[idx,]
+  save(datProbes, file="../data/datProbes.rda")
 }
 
 #Load Annotated Probes
@@ -192,6 +195,8 @@ for (reg_ind in 1:length(regions)){
   res.genotype$hsapiens_homolog=datProbes$hsapiens_homolog_ensembl_gene; res.genotype$gene =datProbes$external_gene_name
   res.treatment$hsapiens_homolog=datProbes$hsapiens_homolog_ensembl_gene; res.treatment$gene =datProbes$external_gene_name
   
+  write.csv(res.genotype, file = paste("../regulated genes lists/res.genotype", curr_reg, ".csv"))
+  write.csv(res.treatment, file = paste("../regulated genes lists/res.treatment", curr_reg, ".csv"))
   
   res = list(res.genotype, res.treatment)
   
@@ -204,22 +209,23 @@ for (reg_ind in 1:length(regions)){
     #plots - MA and volcano
     if (plot_volcano){
     
-    plot.new()
-    
-    par(mfrow=c(2,1),mar=c(5,4,2,2))
-    DESeq2::plotMA(curr_res, main=paste(curr_reg, contrast), ylim=c(-2,2))
-    
-    
-    c= rgb(t(col2rgb(as.numeric(1))),alpha=100,maxColorValue = 255)
-    minp = min(curr_res$padj[curr_res$padj>0])
-    curr_res$padj[curr_res$padj==0] = minp
-    maxp = 1.1*max(-log10(curr_res$padj));
-    
-    plot(curr_res$log2FoldChange, -log10(curr_res$padj), xlab="Log2 Fold Change", ylab="log10(P.adj)",pch=19,col=c,cex=.5, xlim = c(-2,2), ylim=c(0,maxp))
-    idx = which(curr_res$padj<0.05)
-    points(curr_res$log2FoldChange[idx], -log10(curr_res$padj)[idx],col="red",cex=0.6)
-    idx = which(curr_res$padj<0.005)
-    text(curr_res$log2FoldChange[idx], -log10(curr_res$padj)[idx], labels = datProbes$external_gene_name[idx],cex=.5, pos = 3)
+      plot.new()
+      
+      par(mfrow=c(2,1),mar=c(5,4,2,2))
+      DESeq2::plotMA(curr_res, main=paste(curr_reg, contrast), ylim=c(-2,2))
+      
+      
+      c= rgb(t(col2rgb(as.numeric(1))),alpha=100,maxColorValue = 255)
+      minp = min(curr_res$padj[curr_res$padj>0], na.rm = TRUE) #ignore indices where padj == 0 when finding min
+      curr_res$padj[curr_res$padj==0] = minp
+      maxp = 1.1*max(-log10(curr_res$padj), na.rm = TRUE);
+      
+      plot(curr_res$log2FoldChange, -log10(curr_res$padj), xlab="Log2 Fold Change", ylab="log10(P.adj)",pch=19,col=c,cex=.5, xlim = c(-2,2), ylim=c(0,maxp))
+      idx = which(curr_res$padj<0.05)
+      points(curr_res$log2FoldChange[idx], -log10(curr_res$padj)[idx],col="red",cex=0.6)
+      idx = which(curr_res$padj<0.005)
+      text(curr_res$log2FoldChange[idx], -log10(curr_res$padj)[idx], labels = datProbes$external_gene_name[idx],cex=.5, pos = 3)
+    }
     
     
     #significant genes
@@ -231,6 +237,8 @@ for (reg_ind in 1:length(regions)){
     dge.down = dge[dge$log2FoldChange<0,]; 
     dge.down = dge.down[order(dge.down$log2FoldChange),]
     
+    write.csv(dge.up, file = paste("../regulated genes lists/dge.up", curr_reg, contrast, ".csv"))
+    write.csv(dge.down, file = paste("../regulated genes lists/dge.down", curr_reg, contrast, ".csv"))
     
     
     #downregulated GO
@@ -263,6 +271,13 @@ for (reg_ind in 1:length(regions)){
     
     
     if (nrow(go) > 0){
+      par(oma=c(0,15,0,0));
+      ttl = paste("GO upregulated", contrast, curr_reg)
+      n_go_show = min(10, dim(dge.up)[1])
+      bp = barplot(-log10(as.numeric(na.omit(go$p.value[n_go_show:1]))), main=ttl, horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
+      axis(2,at=bp,labels=na.omit(go$term.name[n_go_show:1]),tick=FALSE,las=2,cex.axis=.7);
+      abline(v=-log10(0.05), col="red", lwd=2,lty=2)
+    }
     
     
     #tally up total upregulated and downregulated
@@ -271,11 +286,13 @@ for (reg_ind in 1:length(regions)){
     
    if (contrast == "genotype") {
       tally_genotype[reg_ind,] <- c(n_up, n_down)
+   }else if (contrast == "treatment"){
       tally_treatment[reg_ind,] <- c(n_up, n_down)
    }
   }
 }
 
+write.csv(tally_genotype, file = "../regulated genes lists/tally_genotype.csv"); write.csv(tally_treatment, file = "../regulated genes lists/tally_treatment.csv")
 
 dev.off()
 
@@ -285,25 +302,27 @@ dev.off()
 datMeta = datMeta
 datExpr.vst = varianceStabilizingTransformation(dds.global)
 datExpr.vst = assay(datExpr.vst)
+dE = datExpr.vst
+datMeta.cortex = datMeta[which(datMeta$Region != "HC"),]
 
 
 multiExpr = vector(mode="list", length=1)
 multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
-<<<<<<< HEAD
-#multiExpr[[2]] = list(data=as.data.frame(t(dE[,!datMeta$Region=="HC"])), meta = datMeta.cortex)
-#multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
-#multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="DLPFC"])), meta=datMeta.pfc)
-#names(multiExpr) = c("ALL", "Cortical", "HC", "DLPFC")
+multiExpr[[2]] = list(data=as.data.frame(t(dE[,!datMeta$Region=="HC"])), meta = datMeta.cortex)
+multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
+multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
+names(multiExpr) = c("ALL", "Cortical", "HC", "DLPFC")
 
 
 ##Step 1 Choose Soft Threshold Power 
 
-if(FALSE)
+if(TRUE)
 {
+  pdf(file="../figures/Soft threshold power graphs.pdf")
   bsize=6000
   powers=seq(2,30,by=2)
-  for(n in 1:1) { 
-    multiExpr[[n]]$softThresh = pickSoftThreshold(data= multiExpr[[n]]$data, networkType = "signed", corFnc="bicor",verbose=5,powerVector=powers,blockSize = bsize)
+  for(n in 1:length(multiExpr)) { 
+    #multiExpr[[n]]$softThresh = pickSoftThreshold(data= multiExpr[[n]]$data, networkType = "signed", corFnc="bicor",verbose=5,powerVector=powers,blockSize = bsize)
     
     sft = multiExpr[[n]]$softThresh
     par(mfrow=c(1,2))
@@ -313,11 +332,12 @@ if(FALSE)
     plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab = "Soft threshold power", ylab = "Mean connectivity", type = "n")
     text(sft$fitIndices[,1], sft$fitIndices[,5], labels = powers, cex = 0.7, col="black")
   }
+  graphics.off()
 }
 
 
 
-wgcna_parameters = list(powers =  c(18))
+wgcna_parameters = list(powers =  c(18,14,14,10)) #confirm these with Mike
 wgcna_parameters$minModSize = 100
 wgcna_parameters$minHeight = 0.1
 wgcna_parameters$bsize = 18000
@@ -327,7 +347,7 @@ wgcna_parameters$corFnc = "bicor"
 wgcna_parameters$pamStage = TRUE
 
 if(TRUE) {
-  for (n in 1:4) {
+  for (n in 1:length(multiExpr)) {
     ##Calculate TOM, save to file
     rootdir= getwd()
     filenm <- paste(rootdir, "/processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(n),sep="")
