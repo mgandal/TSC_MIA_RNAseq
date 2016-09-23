@@ -349,15 +349,22 @@ wgcna_parameters$pamStage = TRUE
 if(TRUE) {
   for (n in 1:length(multiExpr)) {
     ##Calculate TOM, save to file
-    filenm <- paste("../processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(n),sep="")
+    rootdir = getwd()
+    filenm <- paste(rootdir, "/processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(n),sep="")
     multiExpr[[n]]$netData = blockwiseModules(datExpr=multiExpr[[n]]$data, maxBlockSize=wgcna_parameters$bsize, networkType=wgcna_parameters$networkType, corType = wgcna_parameters$corFnc ,  power = wgcna_parameters$powers[n], mergeCutHeight= wgcna_parameters$minHeight, nThreads=23, 
                                               saveTOMFileBase=filenm, saveTOMs=TRUE, minModuleSize= wgcna_parameters$minModSize, pamStage=wgcna_parameters$pamStage, reassignThreshold=1e-6, verbose = 3, deepSplit=wgcna_parameters$ds)
   }
 }
 
 
-set.idx = 1
-load("./processed_data/WGCNA/network_signed_exprSet_cqn_3-block.1.RData")
+
+
+pdf(file="../figures/Modules figures.pdf")
+
+for (set.idx in 1:length(multiExpr)){
+  
+load(paste("./processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(n),sep="", "-block.1.RData"))
+  
 
 datMeta = multiExpr[[set.idx]]$meta
 geneTree = hclust(as.dist(1-TOM), method = "average"); 
@@ -368,8 +375,10 @@ pam=F; minModSize=100; ds=2; dthresh=0.1
 tree = cutreeHybrid(dendro = geneTree, minClusterSize= minModSize, pamStage=pam, cutHeight = 0.999, deepSplit=ds, distM=as.matrix(1-TOM))
 merged = mergeCloseModules(exprData= multiExpr[[1]]$data, colors = tree$labels, cutHeight=dthresh)
 colors = labels2colors(merged$colors)
-dev.off(); plotDendroAndColors(geneTree, colors, groupLabels=labels, addGuide= TRUE, dendroLabels=FALSE, main="Dendrogram", cex.colorLabels=0.5)
+plotDendroAndColors(geneTree, colors, groupLabels=labels, addGuide= TRUE, dendroLabels=FALSE, main="Dendrogram", cex.colorLabels=0.5)
 table(colors)
 
 MEs = moduleEigengenes(expr = (multiExpr[[set.idx]]$data), colors = labels2colors(merged$colors), softPower = wgcna_parameters$powers[set.idx])
 kME = signedKME(multiExpr[[set.idx]]$data, MEs$eigengenes,corFnc = "bicor")
+}
+dev.off()
