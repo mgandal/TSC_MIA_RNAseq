@@ -303,12 +303,11 @@ datMeta = datMeta
 datExpr.vst = varianceStabilizingTransformation(dds.global)
 datExpr.vst = assay(datExpr.vst)
 dE = datExpr.vst
-datMeta.cortex = datMeta[which(datMeta$Region != "HC"),]
 
 
 multiExpr = vector(mode="list", length=1)
 multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
-multiExpr[[2]] = list(data=as.data.frame(t(dE[,!datMeta$Region=="HC"])), meta = datMeta.cortex)
+multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
 multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
 multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
 names(multiExpr) = c("ALL", "Cortical", "HC", "DLPFC")
@@ -347,13 +346,17 @@ wgcna_parameters$corFnc = "bicor"
 wgcna_parameters$pamStage = TRUE
 
 if(TRUE) {
+  
   for (n in 1:length(multiExpr)) {
+    t_start <- Sys.time()
     ##Calculate TOM, save to file
     rootdir = getwd()
     filenm <- paste(rootdir, "/processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(n),sep="")
     multiExpr[[n]]$netData = blockwiseModules(datExpr=multiExpr[[n]]$data, maxBlockSize=wgcna_parameters$bsize, networkType=wgcna_parameters$networkType, corType = wgcna_parameters$corFnc ,  power = wgcna_parameters$powers[n], mergeCutHeight= wgcna_parameters$minHeight, nThreads=23, 
                                               saveTOMFileBase=filenm, saveTOMs=TRUE, minModuleSize= wgcna_parameters$minModSize, pamStage=wgcna_parameters$pamStage, reassignThreshold=1e-6, verbose = 3, deepSplit=wgcna_parameters$ds)
-  }
+    t_end <- Sys.time()
+    t = t_end-t_start
+    }
 }
 
 
@@ -363,7 +366,7 @@ pdf(file="../figures/Modules figures.pdf")
 
 for (set.idx in 1:length(multiExpr)){
   
-load(paste("./processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(n),sep="", "-block.1.RData"))
+load(paste("./processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(set.idx),sep="", "-block.1.RData"))
   
 
 datMeta = multiExpr[[set.idx]]$meta
@@ -373,7 +376,7 @@ geneTree = hclust(as.dist(1-TOM), method = "average");
 colors = vector(mode="list"); labels = vector(mode="list"); labels=""
 pam=F; minModSize=100; ds=2; dthresh=0.1
 tree = cutreeHybrid(dendro = geneTree, minClusterSize= minModSize, pamStage=pam, cutHeight = 0.999, deepSplit=ds, distM=as.matrix(1-TOM))
-merged = mergeCloseModules(exprData= multiExpr[[1]]$data, colors = tree$labels, cutHeight=dthresh)
+merged = mergeCloseModules(exprData= multiExpr[[set.idx]]$data, colors = tree$labels, cutHeight=dthresh)
 colors = labels2colors(merged$colors)
 plotDendroAndColors(geneTree, colors, groupLabels=labels, addGuide= TRUE, dendroLabels=FALSE, main="Dendrogram", cex.colorLabels=0.5)
 table(colors)
