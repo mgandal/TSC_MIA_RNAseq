@@ -149,7 +149,6 @@ dds.global = DESeqDataSetFromMatrix(datExpr, datMeta, ~Genotype + Treatment + Re
 dds.global = estimateSizeFactors(dds.global); dds.global = DESeq(dds.global); 
 
 
-
 datExpr.cbl = datExpr[,grep("CB", colnames(datExpr))]
 datMeta.cbl = datMeta[which(datMeta$Region == "CBL"),]
 dds.cbl = DESeqDataSetFromMatrix(datExpr.cbl, datMeta.cbl, ~Genotype + Treatment + Hemisphere + RIN) # + seqPC1 + seqPC2
@@ -180,7 +179,7 @@ rownames(tally_genotype) = regions; colnames(tally_genotype) <- c("up", "down")
 tally_treatment <- data.frame(matrix(0, ncol = 2, nrow = 4))
 rownames(tally_treatment) = regions; colnames(tally_treatment) <- c("up", "down")
 
-plot_volcano <- TRUE
+plot_volcano <- FALSE
 
 #Find significantly regulated genes and GO in each region
 for (reg_ind in 1:length(regions)){
@@ -305,12 +304,27 @@ datExpr.vst = assay(datExpr.vst)
 dE = datExpr.vst
 
 
+#set up expression MS
 multiExpr = vector(mode="list", length=1)
 multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
 multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
 multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
 multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
 names(multiExpr) = c("ALL", "Cortical", "HC", "DLPFC")
+
+
+#Subselect genes to filter out ones with poor expression
+g <- goodSamplesGenesMS(multiExpr)
+good_genes <- which(g$goodGenes == TRUE)
+dE = dE[good_genes,]
+
+multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
+multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
+multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
+multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
+
+write.csv(multiExpr, "../data/multiExpr.csv")
+
 
 
 ##Step 1 Choose Soft Threshold Power 
@@ -356,6 +370,7 @@ if(TRUE) {
                                               saveTOMFileBase=filenm, saveTOMs=TRUE, minModuleSize= wgcna_parameters$minModSize, pamStage=wgcna_parameters$pamStage, reassignThreshold=1e-6, verbose = 3, deepSplit=wgcna_parameters$ds)
     t_end <- Sys.time()
     t = t_end-t_start
+    print(t)
     }
 }
 
