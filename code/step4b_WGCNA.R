@@ -127,15 +127,19 @@ for (set.idx in 1:length(multiExpr)){
     #generate traitmat for that region
   } else{
       if(regions[set.idx] == "cbl"){
-      traitmat = as.matrix(model.matrix(~0+datMeta.cbl$Genotype + datMeta.cbl$Treatment + datMeta.cbl$Hemisphere + datMeta.cbl$RIN))
+      traitmat = as.matrix(model.matrix(~datMeta.cbl$Genotype + datMeta.cbl$Treatment + datMeta.cbl$Hemisphere + datMeta.cbl$RIN))
+      traitmat = traitmat[,-1]
       rownames(traitmat) = rownames(datMeta.cbl)
       } else if(regions[set.idx] == "hc") {
-        traitmat = as.matrix(model.matrix(~0+datMeta.hc$Genotype + datMeta.hc$Treatment + datMeta.hc$Hemisphere + datMeta.hc$RIN))
+        traitmat = as.matrix(model.matrix(~datMeta.hc$Genotype + datMeta.hc$Treatment + datMeta.hc$Hemisphere + datMeta.hc$RIN))
+        traitmat = traitmat[,-1]
         rownames(traitmat) = rownames(datMeta.hc)
       } else if(regions[set.idx] == "pfc") {
-        traitmat = as.matrix(model.matrix(~0+datMeta.pfc$Genotype + datMeta.pfc$Treatment + datMeta.pfc$Hemisphere + datMeta.pfc$RIN))
+        traitmat = as.matrix(model.matrix(~datMeta.pfc$Genotype + datMeta.pfc$Treatment + datMeta.pfc$Hemisphere + datMeta.pfc$RIN))
+        traitmat = traitmat[,-1]
         rownames(traitmat) = rownames(datMeta.pfc)
       }
+    colnames(traitmat) = c("datMeta$GenotypeWT", "datMeta$TreatmentSaline", "datMeta$HemisphereR", "datMeta$RIN")
     geneSigs = matrix(NA, nrow= ncol(traitmat), ncol = ncol(multiExpr[[set.idx]]$data))
     
     
@@ -160,7 +164,7 @@ for (set.idx in 1:length(multiExpr)){
   }
   multiExpr[[set.idx]]$geneColors = geneSigsColors
   
-  colors = cbind(colors, t(geneSigsColors))
+  colors = cbind(labels2colors(merged$colors), t(geneSigsColors))
   labels = c(multiExpr[[set.idx]]$netData$cutParameters, colnames(traitmat))
   
   plotDendroAndColors(multiExpr[[set.idx]]$netData$dendrograms[[1]], colors=colors, groupLabels=c("Modules", labels), dendroLabels=FALSE, main =regions[set.idx])
