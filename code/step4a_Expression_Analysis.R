@@ -38,14 +38,9 @@ idx = match(datMeta$Sample, gsub("_","-",RIN_data$Sample))
 datMeta$RIN = RIN_data$RNA.RIN[idx]
 datMeta$RNA_concentration = RIN_data$Conc...ng.ul..from.NanoChip[idx]
 
-#table(datMeta$Group) #tabulates number of subjects in each group
-
 #Expression Data
 gene_ens <- rownames(datExpr) 
 seq_depth <- apply(datExpr,2,sum)
-datSeq <- data.frame(seq_depth)
-colnames(datSeq) = c("SeqDepth")
-datMeta$SeqDepth = seq_depth
 
 #removes numbers following decimal from ensembl ID
 gene_ens_truncated = character(length=length(gene_ens))
@@ -61,6 +56,9 @@ datExpr = datExpr[idx,]
 
 #Sequencing Statistics from Picard
 #######datSeq
+datSeq <- data.frame(seq_depth)
+colnames(datSeq) = c("SeqDepth")
+datMeta$SeqDepth = seq_depth
 datSeq2 = read.delim("../data/QC/RNAseqQC.txt", sep = "")
 datSeq2$SeqDepth = seq_depth
 colnames(datSeq)[1] = "Sample"
