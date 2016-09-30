@@ -4,7 +4,7 @@ rm(list=ls()) #Clear workspace
 
 setwd("/Users/sepid/Documents/Geschwind Lab/TSC_MIA_RNAseq/code")
 
-pdf(file="../figures/TSC graphs.pdf")
+pdf(file="../figures/TSC graphs QC.pdf")
 
 
 #Install Necessary Packages
@@ -54,16 +54,22 @@ idx = grep("ENSMUS", rownames(datExpr))
 datExpr = datExpr[idx,]
 
 
-#Sequencing Statistics from Picard
-#######datSeq
-datSeq <- data.frame(seq_depth)
-colnames(datSeq) = c("SeqDepth")
+#Load Sequencing Statistics from Picard
+datSeq <- read.csv("../data/QC/PicardToolsQC.csv")
+datSeq$SeqDepth = seq_depth
 datMeta$SeqDepth = seq_depth
-datSeq2 = read.delim("../data/QC/RNAseqQC.txt", sep = "")
-datSeq2$SeqDepth = seq_depth
-colnames(datSeq)[1] = "Sample"
-datSeq2$Sample = datMeta$Sample
+datSeq$Sample = datMeta$Sample
 
+datSeq_unlab = datSeq[,2:(length(datSeq)-1)]
+
+#Compute principle components of QC
+PC.datSeq = prcomp(t(scale(datSeq_unlab,scale=T)),center=F)
+varexp <- (PC.datSeq$sdev)^2 / sum(PC.datSeq$sdev^2)
+#corrplot::corrplot(cor(cbind(PC.datSeq$rotation[,1:5], datSeq_unlab)))
+datMeta$seqPC1=PC.datSeq$rotation[,1]
+datMeta$seqPC2=PC.datSeq$rotation[,2]
+datMeta$seqPC3=PC.datSeq$rotation[,3]
+datMeta$seqPC4=PC.datSeq$rotation[,4]
 
 
 #Annotate Probes
@@ -143,25 +149,25 @@ datMeta = datMeta[!outliers,]
 #Run DESeq by region
 regions = c("all", "cbl", "hc", "pfc")
 
-dds.global = DESeqDataSetFromMatrix(datExpr, datMeta, ~Genotype + Treatment + Region + Hemisphere + RIN) # + seqPC1 + seqPC2
+dds.global = DESeqDataSetFromMatrix(datExpr, datMeta, ~Genotype + Treatment + Region + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.global = estimateSizeFactors(dds.global); dds.global = DESeq(dds.global); 
 
 
 datExpr.cbl = datExpr[,grep("CB", colnames(datExpr))]
 datMeta.cbl = datMeta[which(datMeta$Region == "CBL"),]
-dds.cbl = DESeqDataSetFromMatrix(datExpr.cbl, datMeta.cbl, ~Genotype + Treatment + Hemisphere + RIN) # + seqPC1 + seqPC2
+dds.cbl = DESeqDataSetFromMatrix(datExpr.cbl, datMeta.cbl, ~Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.cbl = estimateSizeFactors(dds.cbl); dds.cbl = DESeq(dds.cbl);
 
 
 datExpr.hc = datExpr[,grep("HP", colnames(datExpr))]
 datMeta.hc = datMeta[which(datMeta$Region == "HC"),]
-dds.hc = DESeqDataSetFromMatrix(datExpr.hc, datMeta.hc, ~Genotype + Treatment + Hemisphere + RIN) # + seqPC1 + seqPC2
+dds.hc = DESeqDataSetFromMatrix(datExpr.hc, datMeta.hc, ~Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.hc = estimateSizeFactors(dds.hc); dds.hc = DESeq(dds.hc);
 
 
 datExpr.pfc = datExpr[,grep("PFC", colnames(datExpr))]
 datMeta.pfc = datMeta[which(datMeta$Region == "PFC"),]
-dds.pfc = DESeqDataSetFromMatrix(datExpr.pfc, datMeta.pfc, ~Genotype + Treatment + Hemisphere + RIN) # + seqPC1 + seqPC2
+dds.pfc = DESeqDataSetFromMatrix(datExpr.pfc, datMeta.pfc, ~Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.pfc = estimateSizeFactors(dds.pfc); dds.pfc = DESeq(dds.pfc);
 
 
@@ -177,7 +183,7 @@ rownames(tally_genotype) = regions; colnames(tally_genotype) <- c("up", "down")
 tally_treatment <- data.frame(matrix(0, ncol = 2, nrow = 4))
 rownames(tally_treatment) = regions; colnames(tally_treatment) <- c("up", "down")
 
-plot_volcano <- FALSE
+plot_volcano <- TRUE
 
 #Find significantly regulated genes and GO in each region
 for (reg_ind in 1:length(regions)){
@@ -192,8 +198,8 @@ for (reg_ind in 1:length(regions)){
   res.genotype$hsapiens_homolog=datProbes$hsapiens_homolog_ensembl_gene; res.genotype$gene =datProbes$external_gene_name
   res.treatment$hsapiens_homolog=datProbes$hsapiens_homolog_ensembl_gene; res.treatment$gene =datProbes$external_gene_name
   
-  write.csv(res.genotype, file = paste("../regulated genes lists/res.genotype", curr_reg, ".csv"))
-  write.csv(res.treatment, file = paste("../regulated genes lists/res.treatment", curr_reg, ".csv"))
+  write.csv(res.genotype, file = paste("../data/regulated genes lists QC/res.genotype", curr_reg, ".csv"))
+  write.csv(res.treatment, file = paste("../data/regulated genes lists QC/res.treatment", curr_reg, ".csv"))
   
   res = list(res.genotype, res.treatment)
   
@@ -234,8 +240,8 @@ for (reg_ind in 1:length(regions)){
     dge.down = dge[dge$log2FoldChange<0,]; 
     dge.down = dge.down[order(dge.down$log2FoldChange),]
     
-    write.csv(dge.up, file = paste("../regulated genes lists/dge.up", curr_reg, contrast, ".csv"))
-    write.csv(dge.down, file = paste("../regulated genes lists/dge.down", curr_reg, contrast, ".csv"))
+    write.csv(dge.up, file = paste("../data/regulated genes lists QC/dge.up", curr_reg, contrast, ".csv"))
+    write.csv(dge.down, file = paste("../data/regulated genes lists QC/dge.down", curr_reg, contrast, ".csv"))
     
     
     #downregulated GO
@@ -289,6 +295,6 @@ for (reg_ind in 1:length(regions)){
   }
 }
 
-write.csv(tally_genotype, file = "../regulated genes lists/tally_genotype.csv"); write.csv(tally_treatment, file = "../regulated genes lists/tally_treatment.csv")
+write.csv(tally_genotype, file = "../data/regulated genes lists QC/tally_genotype.csv"); write.csv(tally_treatment, file = "../data/regulated genes lists QC/tally_treatment.csv")
 
 dev.off()

@@ -13,7 +13,7 @@ multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
 multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
 multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
 multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
-names(multiExpr) = c("ALL", "Cortical", "HC", "DLPFC")
+names(multiExpr) = c("ALL", "Cortical", "HC", "PFC")
 
 
 #Subselect genes to filter out ones with poor expression
@@ -34,11 +34,11 @@ write.csv(multiExpr, "../data/multiExpr.csv")
 
 if(TRUE)
 {
-  pdf(file="../figures/Soft threshold power graphs.pdf")
+  pdf(file="../figures/Soft threshold power graphs QC.pdf")
   bsize=6000
   powers=seq(2,30,by=2)
   for(n in 1:length(multiExpr)) { 
-    #multiExpr[[n]]$softThresh = pickSoftThreshold(data= multiExpr[[n]]$data, networkType = "signed", corFnc="bicor",verbose=5,powerVector=powers,blockSize = bsize)
+    multiExpr[[n]]$softThresh = pickSoftThreshold(data= multiExpr[[n]]$data, networkType = "signed", corFnc="bicor",verbose=5,powerVector=powers,blockSize = bsize)
     
     sft = multiExpr[[n]]$softThresh
     par(mfrow=c(1,2))
@@ -53,7 +53,8 @@ if(TRUE)
 
 
 
-wgcna_parameters = list(powers =  c(18,14,14,10)) #confirm these with Mike
+#wgcna_parameters = list(powers =  c(18,14,14,10)) #non-QC model
+wgcna_parameters = list(powers = c(18, 8, 10, 10)) #QC model
 wgcna_parameters$minModSize = 100
 wgcna_parameters$minHeight = 0.1
 wgcna_parameters$bsize = 18000
@@ -68,7 +69,7 @@ if(TRUE) {
     t_start <- Sys.time()
     ##Calculate TOM, save to file
     rootdir = getwd()
-    filenm <- paste(rootdir, "/processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(n),sep="")
+    filenm <- paste(rootdir, "/processed_data/WGCNA QC/network_signed_exprSet_cqn.noregress_", as.character(n),sep="")
     multiExpr[[n]]$netData = blockwiseModules(datExpr=multiExpr[[n]]$data, maxBlockSize=wgcna_parameters$bsize, networkType=wgcna_parameters$networkType, corType = wgcna_parameters$corFnc ,  power = wgcna_parameters$powers[n], mergeCutHeight= wgcna_parameters$minHeight, nThreads=23, 
                                               saveTOMFileBase=filenm, saveTOMs=TRUE, minModuleSize= wgcna_parameters$minModSize, pamStage=wgcna_parameters$pamStage, reassignThreshold=1e-6, verbose = 3, deepSplit=wgcna_parameters$ds)
     t_end <- Sys.time()
@@ -78,13 +79,12 @@ if(TRUE) {
 }
 
 
-
 #merge modules and produce dendrograms for each region
-pdf(file="../figures/Modules figures.pdf")
+pdf(file="../figures/Modules figures QC.pdf")
 
 for (set.idx in 1:length(multiExpr)){
   
-  load(paste("./processed_data/WGCNA/network_signed_exprSet_cqn.noregress_", as.character(set.idx),sep="", "-block.1.RData"))
+  load(paste("./processed_data/WGCNA QC/network_signed_exprSet_cqn.noregress_", as.character(set.idx),sep="", "-block.1.RData"))
   
   geneTree = hclust(as.dist(1-TOM), method = "average"); 
   colors = vector(mode="list"); labels = vector(mode="list"); labels=""
