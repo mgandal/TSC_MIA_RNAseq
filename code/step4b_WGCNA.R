@@ -26,9 +26,7 @@ multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = 
 multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
 multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
 
-write.csv(multiExpr, "../data/multiExpr.csv")
-
-
+write.csv(multiExpr, "../data/multiExpr QC.csv")
 
 ##Step 1 Choose Soft Threshold Power 
 
@@ -49,12 +47,13 @@ if(TRUE)
     text(sft$fitIndices[,1], sft$fitIndices[,5], labels = powers, cex = 0.7, col="black")
   }
   graphics.off()
+  dev.off()
 }
 
 
-
-#wgcna_parameters = list(powers =  c(18,14,14,10)) #non-QC model
-wgcna_parameters = list(powers = c(18, 8, 10, 10)) #QC model
+#chosen_powers = c(18,14,14,10) #non-QC model
+chosen_powers = c(18, 8, 10, 10) #QC model
+wgcna_parameters = list(chosen_powers)
 wgcna_parameters$minModSize = 100
 wgcna_parameters$minHeight = 0.1
 wgcna_parameters$bsize = 18000
@@ -75,6 +74,7 @@ if(TRUE) {
     t_end <- Sys.time()
     t = t_end-t_start
     print(t)
+    save(multiExpr, file = "multiExpr QC")
   }
 }
 
@@ -96,13 +96,17 @@ for (set.idx in 1:length(multiExpr)){
   #table(colors)
   
   MEs = moduleEigengenes(expr = (multiExpr[[set.idx]]$data), colors = labels2colors(merged$colors), softPower = wgcna_parameters$powers[set.idx])
+  save(MEs, file = paste("../data/MEs/MEs", regions[set.idx], sep = "-"))
+  
   kME = signedKME(multiExpr[[set.idx]]$data, MEs$eigengenes,corFnc = "bicor")
+  save(kME, file = paste("../data/MEs/kMEs", regions[set.idx], sep = "-"))
+  
 
   ##Gene-level WGCNA
   
   #for aggregate of regions
   if (regions[set.idx] == "all"){
-    traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN))
+    traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN + datMeta$seqPC1 + datMeta$seqPC2))
     rownames(traitmat) = rownames(datMeta)
     
     geneSigs = matrix(NA, nrow= ncol(traitmat), ncol = ncol(multiExpr[[set.idx]]$data))
@@ -115,11 +119,13 @@ for (set.idx in 1:length(multiExpr)){
       RegionCBLr = bicor(traitmat[,"datMeta$RegionCBL"], exprvec, use="pairwise.complete.obs")
       RegionHCr = bicor(traitmat[,"datMeta$RegionHC"], exprvec, use="pairwise.complete.obs")
       RegionPFCr = bicor(traitmat[,"datMeta$RegionPFC"], exprvec, use="pairwise.complete.obs")
-      Genotyper = bicor(traitmat[,"datMeta$GenotypeWT"], exprvec, use="pairwise.complete.obs")
-      Treatmentr = bicor(traitmat[,"datMeta$TreatmentSaline"], exprvec, use="pairwise.complete.obs")
+      Genotyper = bicor(traitmat[,"datMeta$GenotypeHet"], exprvec, use="pairwise.complete.obs")
+      Treatmentr = bicor(traitmat[,"datMeta$TreatmentPolyIC"], exprvec, use="pairwise.complete.obs")
       Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
       rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
-      geneSigs[,i] = c(RegionCBLr, RegionHCr, RegionPFCr, Genotyper, Treatmentr, Hemispherer, rinr)
+      seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
+      seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
+      geneSigs[,i] = c(RegionCBLr, RegionHCr, RegionPFCr, Genotyper, Treatmentr, Hemispherer, rinr, seqPC1r, seqPC2r)
     }
     
     
@@ -127,19 +133,19 @@ for (set.idx in 1:length(multiExpr)){
     #generate traitmat for that region
   } else{
       if(regions[set.idx] == "cbl"){
-      traitmat = as.matrix(model.matrix(~datMeta.cbl$Genotype + datMeta.cbl$Treatment + datMeta.cbl$Hemisphere + datMeta.cbl$RIN))
+      traitmat = as.matrix(model.matrix(~datMeta.cbl$Genotype + datMeta.cbl$Treatment + datMeta.cbl$Hemisphere + datMeta.cbl$RIN + datMeta.cbl$seqPC1 + datMeta.cbl$seqPC2))
       traitmat = traitmat[,-1]
       rownames(traitmat) = rownames(datMeta.cbl)
       } else if(regions[set.idx] == "hc") {
-        traitmat = as.matrix(model.matrix(~datMeta.hc$Genotype + datMeta.hc$Treatment + datMeta.hc$Hemisphere + datMeta.hc$RIN))
+        traitmat = as.matrix(model.matrix(~datMeta.hc$Genotype + datMeta.hc$Treatment + datMeta.hc$Hemisphere + datMeta.hc$RIN + datMeta.hc$seqPC1 + datMeta.hc$seqPC2))
         traitmat = traitmat[,-1]
         rownames(traitmat) = rownames(datMeta.hc)
       } else if(regions[set.idx] == "pfc") {
-        traitmat = as.matrix(model.matrix(~datMeta.pfc$Genotype + datMeta.pfc$Treatment + datMeta.pfc$Hemisphere + datMeta.pfc$RIN))
+        traitmat = as.matrix(model.matrix(~datMeta.pfc$Genotype + datMeta.pfc$Treatment + datMeta.pfc$Hemisphere + datMeta.pfc$RIN + datMeta.pfc$seqPC1 + datMeta.pfc$seqPC2))
         traitmat = traitmat[,-1]
         rownames(traitmat) = rownames(datMeta.pfc)
       }
-    colnames(traitmat) = c("datMeta$GenotypeWT", "datMeta$TreatmentSaline", "datMeta$HemisphereR", "datMeta$RIN")
+    colnames(traitmat) = c("datMeta$GenotypeHet", "datMeta$TreatmentPolyIC", "datMeta$HemisphereR", "datMeta$RIN", "datMeta$seqPC1", "datMeta$seqPC2")
     geneSigs = matrix(NA, nrow= ncol(traitmat), ncol = ncol(multiExpr[[set.idx]]$data))
     
     
@@ -151,7 +157,10 @@ for (set.idx in 1:length(multiExpr)){
       Treatmentr = bicor(traitmat[,"datMeta$TreatmentSaline"], exprvec, use="pairwise.complete.obs")
       Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
       rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
-      geneSigs[,i] = c(Genotyper, Treatmentr, Hemispherer, rinr)
+      seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
+      seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
+      
+      geneSigs[,i] = c(Genotyper, Treatmentr, Hemispherer, rinr, seqPC1r, seqPC2r)
     }
   }
   
@@ -171,5 +180,25 @@ for (set.idx in 1:length(multiExpr)){
   
 }
 dev.off()
+
+#build consensus network
+net = blockwiseConsensusModules(multiExpr, maxBlockSize = 20000, corType = "bicor", power = chosen_powers,
+                                networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
+                                consensusTOMFileNames = "./processed_data/WGCNA/asd_scz_ad_consensus-small-block%b.Rdata",
+                                consensusQuantile = 0.2, deepSplit = 4, pamStage = FALSE, 
+                                detectCutHeight = 0.995, mergeCutHeight = 0.2, 
+                                minModuleSize = 100, 
+                                reassignThresholdPS = 1e-10,verbose=3)
+
+consMEs = net$multiMEs;
+moduleLabels = net$colors;
+moduleColors = (moduleLabels)
+consTree = net$dendrograms[[1]];
+sizeGrWindow(8,6);
+plotDendroAndColors(consTree, moduleColors,
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05,
+                    main = "Consensus gene dendrogram and module colors")
 
 

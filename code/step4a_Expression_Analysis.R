@@ -30,8 +30,14 @@ RIN_data <- read.csv("../data/Processed Silva_TSC_MIA_MsRNAseq20160510.csv")
 #Meta Data
 datMeta$Genotype = "Het"
 datMeta$Genotype[datMeta$Subject %in% c(442,466,469)] = "WT"
+datMeta$Genotype <- as.factor(datMeta$Genotype)
+levels(datMeta$Genotype) <- c("WT", "Het")
+
 datMeta$Treatment = "PolyIC"
 datMeta$Treatment[datMeta$Subject %in% c(420, 455, 447)] = "Saline"
+datMeta$Treatment <- as.factor(datMeta$Treatment)
+levels(datMeta$Treatment) <- c("Saline", "PolyIC")
+
 datMeta$Group = as.factor(paste(datMeta$Genotype, "_", datMeta$Treatment,sep=""))
 
 idx = match(datMeta$Sample, gsub("_","-",RIN_data$Sample))
@@ -65,7 +71,7 @@ datSeq_unlab = datSeq[,2:(length(datSeq)-1)]
 #Compute principle components of QC
 PC.datSeq = prcomp(t(scale(datSeq_unlab,scale=T)),center=F)
 varexp <- (PC.datSeq$sdev)^2 / sum(PC.datSeq$sdev^2)
-#corrplot::corrplot(cor(cbind(PC.datSeq$rotation[,1:5], datSeq_unlab)))
+corrplot::corrplot(cor(cbind(PC.datSeq$rotation[,1:5], datSeq_unlab)))
 datMeta$seqPC1=PC.datSeq$rotation[,1]
 datMeta$seqPC2=PC.datSeq$rotation[,2]
 datMeta$seqPC3=PC.datSeq$rotation[,3]
@@ -129,7 +135,9 @@ tree = hclust(dist(t(datExpr.cpm)), method = "average");
 plot(tree)
 rin_col = numbers2colors(datMeta$RIN, blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(0,10))
 seqdepth_col = numbers2colors(datMeta$SeqDepth)
-plotDendroAndColors(tree,colors = cbind(as.factor(datMeta$Region), as.factor(datMeta$Genotype), as.factor(datMeta$Treatment), as.factor(datMeta$Hemisphere), seqdepth_col, rin_col), groupLabels = c("Region", "Genotype", "Treatment", "Hemisphere","SeqDepth", "RIN"))
+seqPC1_col = numbers2colors(datMeta$seqPC1)
+seqPC2_col = numbers2colors(datMeta$seqPC2)
+plotDendroAndColors(tree,colors = cbind(as.factor(datMeta$Region), as.factor(datMeta$Genotype), as.factor(datMeta$Treatment), as.factor(datMeta$Hemisphere), seqdepth_col, rin_col, seqPC1_col, seqPC2_col), groupLabels = c("Region", "Genotype", "Treatment", "Hemisphere","SeqDepth", "RIN", "SeqPC1", "SeqPC2"))
 
 
 #Outlier Removal
@@ -253,13 +261,14 @@ for (reg_ind in 1:length(regions)){
                        include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
     go = go.mus[order(go.mus$p.value),]
     
-    
-    par(oma=c(0,15,0,0))
-    ttl = paste("GO downregulated", contrast, curr_reg)
-    n_go_show = min(10, dim(dge.down)[1])
-    bp = barplot(-log10(as.numeric(na.omit(go$p.value[n_go_show:1]))), main = ttl, horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
-    axis(2,at=bp,labels=na.omit(go$term.name[n_go_show:1]),tick=FALSE,las=2,cex.axis=.7);
-    abline(v=-log10(0.05), col="red", lwd=2,lty=2)
+    if (nrow(go) > 0){
+      par(oma=c(0,15,0,0))
+      ttl = paste("GO downregulated", contrast, curr_reg)
+      n_go_show = min(10, dim(dge.down)[1])
+      bp = barplot(-log10(as.numeric(na.omit(go$p.value[n_go_show:1]))), main = ttl, horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
+      axis(2,at=bp,labels=na.omit(go$term.name[n_go_show:1]),tick=FALSE,las=2,cex.axis=.7);
+      abline(v=-log10(0.05), col="red", lwd=2,lty=2)
+    }
     
     
     #upregulated GO
