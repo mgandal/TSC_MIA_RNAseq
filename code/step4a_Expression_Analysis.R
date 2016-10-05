@@ -1,6 +1,6 @@
 options(stringsAsFactors = F)
 
-rm(list=ls()) #Clear workspace
+#rm(list=ls()) #Clear workspace
 
 setwd("/Users/sepid/Documents/Geschwind Lab/TSC_MIA_RNAseq/code")
 
@@ -31,12 +31,13 @@ RIN_data <- read.csv("../data/Processed Silva_TSC_MIA_MsRNAseq20160510.csv")
 datMeta$Genotype = "Het"
 datMeta$Genotype[datMeta$Subject %in% c(442,466,469)] = "WT"
 datMeta$Genotype <- as.factor(datMeta$Genotype)
-levels(datMeta$Genotype) <- c("WT", "Het")
+datMeta$Genotype <- relevel(datMeta$Genotype, "WT")
+
 
 datMeta$Treatment = "PolyIC"
 datMeta$Treatment[datMeta$Subject %in% c(420, 455, 447)] = "Saline"
 datMeta$Treatment <- as.factor(datMeta$Treatment)
-levels(datMeta$Treatment) <- c("Saline", "PolyIC")
+datMeta$Treatment <- relevel(datMeta$Treatment, "Saline")
 
 datMeta$Group = as.factor(paste(datMeta$Genotype, "_", datMeta$Treatment,sep=""))
 
@@ -159,24 +160,31 @@ regions = c("all", "cbl", "hc", "pfc")
 
 dds.global = DESeqDataSetFromMatrix(datExpr, datMeta, ~Genotype + Treatment + Region + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.global = estimateSizeFactors(dds.global); dds.global = DESeq(dds.global); 
+dds.global$Treatment <- relevel(dds.global$Treatment, ref="Saline")
+dds.global$Genotype <- relevel(dds.global$Genotype, ref="WT")
 
 
 datExpr.cbl = datExpr[,grep("CB", colnames(datExpr))]
 datMeta.cbl = datMeta[which(datMeta$Region == "CBL"),]
 dds.cbl = DESeqDataSetFromMatrix(datExpr.cbl, datMeta.cbl, ~Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.cbl = estimateSizeFactors(dds.cbl); dds.cbl = DESeq(dds.cbl);
-
+dds.cbl$Treatment <- relevel(dds.cbl$Treatment, ref="Saline")
+dds.cbl$Genotype <- relevel(dds.cbl$Genotype, ref="WT")
 
 datExpr.hc = datExpr[,grep("HP", colnames(datExpr))]
 datMeta.hc = datMeta[which(datMeta$Region == "HC"),]
 dds.hc = DESeqDataSetFromMatrix(datExpr.hc, datMeta.hc, ~Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.hc = estimateSizeFactors(dds.hc); dds.hc = DESeq(dds.hc);
+dds.hc$Treatment <- relevel(dds.hc$Treatment, ref="Saline")
+dds.hc$Genotype <- relevel(dds.hc$Genotype, ref="WT")
 
 
 datExpr.pfc = datExpr[,grep("PFC", colnames(datExpr))]
 datMeta.pfc = datMeta[which(datMeta$Region == "PFC"),]
 dds.pfc = DESeqDataSetFromMatrix(datExpr.pfc, datMeta.pfc, ~Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2)
 dds.pfc = estimateSizeFactors(dds.pfc); dds.pfc = DESeq(dds.pfc);
+dds.pfc$Treatment <- relevel(dds.pfc$Treatment, ref="Saline")
+dds.pfc$Genotype <- relevel(dds.pfc$Genotype, ref="WT")
 
 
 dds <- list(dds.global, dds.cbl, dds.hc, dds.pfc)
@@ -307,3 +315,6 @@ for (reg_ind in 1:length(regions)){
 write.csv(tally_genotype, file = "../data/regulated genes lists QC/tally_genotype.csv"); write.csv(tally_treatment, file = "../data/regulated genes lists QC/tally_treatment.csv")
 
 dev.off()
+
+
+

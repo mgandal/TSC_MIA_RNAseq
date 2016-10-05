@@ -53,7 +53,7 @@ if(TRUE)
 
 #chosen_powers = c(18,14,14,10) #non-QC model
 chosen_powers = c(18, 8, 10, 10) #QC model
-wgcna_parameters = list(chosen_powers)
+wgcna_parameters = list(powers = chosen_powers)
 wgcna_parameters$minModSize = 100
 wgcna_parameters$minHeight = 0.1
 wgcna_parameters$bsize = 18000
@@ -78,6 +78,8 @@ if(TRUE) {
   }
 }
 
+
+load("multiExpr QC")
 
 #merge modules and produce dendrograms for each region
 pdf(file="../figures/Modules figures QC.pdf")
@@ -126,8 +128,9 @@ for (set.idx in 1:length(multiExpr)){
       seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
       seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
       geneSigs[,i] = c(RegionCBLr, RegionHCr, RegionPFCr, Genotyper, Treatmentr, Hemispherer, rinr, seqPC1r, seqPC2r)
-    }
+   }
     
+  
     
     #for individual regions
     #generate traitmat for that region
@@ -153,8 +156,8 @@ for (set.idx in 1:length(multiExpr)){
     for (i in 1:ncol(geneSigs)) {
       exprvec = as.numeric(multiExpr[[set.idx]]$data[,i])
       
-      Genotyper = bicor(traitmat[,"datMeta$GenotypeWT"], exprvec, use="pairwise.complete.obs")
-      Treatmentr = bicor(traitmat[,"datMeta$TreatmentSaline"], exprvec, use="pairwise.complete.obs")
+      Genotyper = bicor(traitmat[,"datMeta$GenotypeHet"], exprvec, use="pairwise.complete.obs")
+      Treatmentr = bicor(traitmat[,"datMeta$TreatmentPolyIC"], exprvec, use="pairwise.complete.obs")
       Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
       rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
       seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
@@ -170,7 +173,13 @@ for (set.idx in 1:length(multiExpr)){
   geneSigsColors <- matrix(0, dim(geneSigs)[1], dim(geneSigs)[2])
   for (i in 1:ncol(traitmat)) {
     geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,])^2, blueWhiteRed(100), signed=FALSE, centered = TRUE, lim=c(0,1))
+    if (i >= ncol(traitmat)-1){
+      geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,]), blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(-1,1))
+    }
   }
+  
+  
+  
   multiExpr[[set.idx]]$geneColors = geneSigsColors
   
   colors = cbind(labels2colors(merged$colors), t(geneSigsColors))
@@ -181,22 +190,37 @@ for (set.idx in 1:length(multiExpr)){
 }
 dev.off()
 
+save(multiExpr, file = "multiExpr QC")
+
+multiExpr_reg = multiExpr
+multiExpr_reg[[1]] <- NULL
+
 #build consensus network
-net = blockwiseConsensusModules(multiExpr, maxBlockSize = 20000, corType = "bicor", power = chosen_powers,
+net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[2:4],
                                 networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
-                                consensusTOMFileNames = "./processed_data/WGCNA/asd_scz_ad_consensus-small-block%b.Rdata",
+                                consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus-small-block%b.Rdata",
                                 consensusQuantile = 0.2, deepSplit = 4, pamStage = FALSE, 
                                 detectCutHeight = 0.995, mergeCutHeight = 0.2, 
                                 minModuleSize = 100, 
                                 reassignThresholdPS = 1e-10,verbose=3)
 
-consMEs = net$multiMEs;
+
+
+consMEs = net$multiMEs
 moduleLabels = net$colors;
-moduleColors = (moduleLabels)
-consTree = net$dendrograms[[1]];
-sizeGrWindow(8,6);
-plotDendroAndColors(consTree, moduleColors,
-                    "Module colors",
+moduleColors = labels2colors(moduleLabels)
+consTree = net$dendrograms[[1]]
+
+geneSigsColors = multiExpr[[1]]$geneColors[,good_genes]
+
+colors = cbind(moduleColors, t(geneSigsColors))
+traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN + datMeta$seqPC1 + datMeta$seqPC2))
+trait_labels = colnames(traitmat)
+
+
+sizeGrWindow(8,6)
+plotDendroAndColors(consTree, colors=colors,
+                    groupLabels=c("Consensus modules", trait_labels),
                     dendroLabels = FALSE, hang = 0.03,
                     addGuide = TRUE, guideHang = 0.05,
                     main = "Consensus gene dendrogram and module colors")
