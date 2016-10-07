@@ -195,7 +195,10 @@ save(multiExpr, file = "multiExpr QC")
 multiExpr_reg = multiExpr
 multiExpr_reg[[1]] <- NULL
 
+
+
 #build consensus network
+#----------------------
 net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[2:4],
                                 networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
                                 consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus-small-block%b.Rdata",
@@ -205,10 +208,7 @@ net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "
                                 reassignThresholdPS = 1e-10,verbose=3)
 
 
-
-consMEs = net$multiMEs
-moduleLabels = net$colors;
-moduleColors = labels2colors(moduleLabels)
+moduleColors = net$colors
 consTree = net$dendrograms[[1]]
 
 geneSigsColors = multiExpr[[1]]$geneColors[,good_genes]
@@ -218,11 +218,134 @@ traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta
 trait_labels = colnames(traitmat)
 
 
+pdf("../figures/Consensus modules.pdf")
 sizeGrWindow(8,6)
 plotDendroAndColors(consTree, colors=colors,
                     groupLabels=c("Consensus modules", trait_labels),
                     dendroLabels = FALSE, hang = 0.03,
                     addGuide = TRUE, guideHang = 0.05,
                     main = "Consensus gene dendrogram and module colors")
+dev.off()
+
+
+#calculate consensus MEs and kMEs
+#-------------------------------
+consMEs = merge(net$multiMEs[[1]], net$multiMEs[[2]], all=TRUE)
+consMEs = merge(consMEs, net$multiMEs[[3]], all=TRUE)
+kME = signedKME(multiExpr[[1]]$data, consMEs, corFnc = "bicor")
+
+
+
+#Make web plot for consensus network
+#---------------------------------
+pdf("./figures/ConsensusModulesNetworks.pdf", height=8, width=8)
+
+unique_colors = unique(moduleColors)
+
+for(mod in unique_colors) {
+  
+  module_genes = colnames(multiExpr[[1]]$data)[moduleColors == mod]
+  mod_name = paste("kMEta.ME", mod, sep="")
+  MM = order(kME[module_genes,mod_name],decreasing = T) #sort genes in order of highest MM
+  module = kME[module_genes[MM], mod_name]
+  
+  numgenesingraph = 100
+  numconnections2keep = 500
+  MMtoDisp = MM[1:numgenesingraph]
+  
+  #----------------
+  idx = which(colnames(multiExpr[[1]]$data) %in% module_genes)
+  modTOM = (full(consTomDS)[module_genes,module_genes])
+  dimnames(modTOM) = list(genes, genes)
+  
+  reducedTOM = modTOM
+  orderind = order(reducedTOM,decreasing=TRUE);
+  connections2keep = orderind[(1+nrow(modTOM)):(numconnections2keep+nrow(modTOM))];
+  reducedTOM = matrix(0,nrow(reducedTOM),ncol(reducedTOM));
+  reducedTOM[connections2keep] = 1;
+  
+  g0 <- graph.adjacency(as.matrix(reducedTOM[1:5,1:5]),mode="undirected",weighted=TRUE,diag=FALSE)
+  layoutMata <- layout.circle(g0)
+  
+  g0 <- graph.adjacency(as.matrix(reducedTOM[6:29,6:29]),mode="undirected",weighted=TRUE,diag=FALSE)
+  layoutMatb <- layout.circle(g0)
+  
+  g0 <- graph.adjacency(as.matrix(reducedTOM[30:ncol(reducedTOM),30:ncol(reducedTOM)]),mode="undirected",weighted=TRUE,diag=FALSE)
+  layoutMatc <- layout.circle(g0)
+  
+  g1 <- graph.adjacency(as.matrix(reducedTOM),mode="undirected",weighted=TRUE,diag=FALSE)
+  layoutMat <- rbind(layoutMata*0.25,layoutMatb*0.5, layoutMatc)
+  plot(g1,edge.color="grey",vertex.color=mod,vertex.label=as.character(genes),vertex.label.cex=0.7,vertex.label.dist=0.45,vertex.label.degree=-pi/4,vertex.label.color="black",layout= layoutMat,vertex.size=module[1:numgenesingraph]^3*4,main=paste(mod,"module"))
+}
+
+dev.off()
+
+
+adjMat = covAll^1
+adjMat2 = adjMat; adjMat2[adjMat2 <0.5] = 0
+adjMat[(adjMat)<0.2] = 0
+
+genes_nogrey=rownames(modColors)[modColors!="grey"]
+
+keepgenes = rownames(cons_kme)[gene_idx]
+adjMat = adjMat[gene_idx,gene_idx]
+adjMat2 = adjMat2[gene_idx,gene_idx]
+numcors =Inf
+topcors = sort(as.numeric(adjMat), decreasing = T)[numcors]
+adjMat[adjMat<=topcors]=0
+
+geneSymbols = asd_datProbes[keepgenes, "external_gene_id"]
+g1 <- graph.adjacency(as.matrix(adjMat),mode="undirected",weighted=T,diag=FALSE)
+g2 = graph.adjacency(as.matrix(adjMat2),mode="undirected",weighted=T,diag=FALSE)
+layoutFR <- layout.fruchterman.reingold(g2,dim=2)
+
+
+
+edgecolors = numbers2colors(E(g1)$weight, colors = redWhiteGreen(100, gamma=2), signed=T, centered=T, lim=c(-0.93,0.93))
+plot.igraph(g1, vertex.label = geneSymbols,
+            vertex.label.dist=0.3, 
+            vertex.size=4,
+            vertex.label.color="black",
+            vertex.color = modColors[keepgenes,"color"],
+            vertex.label.cex=0.6,
+            vertex.frame.color="black",
+            layout=layoutFR,
+            edge.color=edgecolors,
+            edge.width = 2*E(g1)$weight)
+
+edgecolors = numbers2colors(E(g2)$weight, colors = redWhiteGreen(100, gamma =2), signed=T, centered=T, lim=c(-1,1))
+plot.igraph(g2, vertex.label = geneSymbols, add=T,
+            vertex.label.dist=0.3, 
+            vertex.size=4,
+            vertex.label.color="black",
+            vertex.color = modColors[keepgenes,"color"],
+            vertex.label.cex=0.6,
+            vertex.frame.color="black",
+            layout=layoutFR,
+            edge.color=edgecolors,
+            edge.width = 4*E(g1)$weight^4)
+
+
+##PPI
+ppi3 = ppiMat
+ppi3[ppiMat>0] = 1
+deg3 = apply(ppi3,2,sum)
+idx = match(geneSymbols, rownames(ppi3))
+ppiSmall = ppi3[idx,idx]
+
+ppiSmall[is.na(ppiSmall)]=0
+
+
+g2 = graph.adjacency(as.matrix(ppiSmall), mode="undirected", weighted=T, diag=F)
+plot.igraph(g2, vertex.label = "", 
+            vertex.label.dist=0.3, add=T,
+            vertex.size=0,
+            vertex.shape="none",
+            vertex.label.cex=0.6,
+            vertex.frame.color="black",
+            layout=layoutFR,
+            edge.color="gray",
+            edge.width=3)
+
 
 
