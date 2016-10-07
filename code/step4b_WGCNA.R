@@ -9,7 +9,7 @@ dE = datExpr.vst
 
 #set up expression MS
 multiExpr = vector(mode="list", length=1)
-multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
+multiExpr[[1]] = list(data=as.data.frame(t(dE)), meta=datMeta)
 multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
 multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
 multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
@@ -21,7 +21,7 @@ g <- goodSamplesGenesMS(multiExpr)
 good_genes <- which(g$goodGenes == TRUE)
 dE = dE[good_genes,]
 
-multiExpr[[1]] = list(data=as.data.frame(t(datExpr.vst)), meta=datMeta)
+multiExpr[[1]] = list(data=as.data.frame(t(dE)), meta=datMeta)
 multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
 multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
 multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
@@ -82,7 +82,7 @@ if(TRUE) {
 load("multiExpr QC")
 
 #merge modules and produce dendrograms for each region
-pdf(file="../figures/Modules figures QC.pdf")
+pdf(file="../figures/Modules figures QC unsigned.pdf")
 
 for (set.idx in 1:length(multiExpr)){
   
@@ -173,32 +173,32 @@ for (set.idx in 1:length(multiExpr)){
   geneSigsColors <- matrix(0, dim(geneSigs)[1], dim(geneSigs)[2])
   for (i in 1:ncol(traitmat)) {
     geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,])^2, blueWhiteRed(100), signed=FALSE, centered = TRUE, lim=c(0,1))
+    #geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,]), blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(-1,1))
     if (i >= ncol(traitmat)-1){
       geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,]), blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(-1,1))
     }
   }
   
   
-  
   multiExpr[[set.idx]]$geneColors = geneSigsColors
   
   colors = cbind(labels2colors(merged$colors), t(geneSigsColors))
-  labels = c(multiExpr[[set.idx]]$netData$cutParameters, colnames(traitmat))
+  trait_labels = substr(colnames(traitmat), 9, nchar(colnames(traitmat))) #remove "datMeta$" from variable names
   
-  plotDendroAndColors(multiExpr[[set.idx]]$netData$dendrograms[[1]], colors=colors, groupLabels=c("Modules", labels), dendroLabels=FALSE, main =regions[set.idx])
+  plotDendroAndColors(multiExpr[[set.idx]]$netData$dendrograms[[1]], colors=colors, groupLabels=c("Modules", trait_labels), dendroLabels=FALSE, main =regions[set.idx])
   
 }
 dev.off()
 
 save(multiExpr, file = "multiExpr QC")
 
-multiExpr_reg = multiExpr
-multiExpr_reg[[1]] <- NULL
-
 
 
 #build consensus network
 #----------------------
+multiExpr_reg = multiExpr
+multiExpr_reg[[1]] <- NULL
+
 net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[2:4],
                                 networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
                                 consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus-small-block%b.Rdata",
@@ -207,24 +207,27 @@ net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "
                                 minModuleSize = 100, 
                                 reassignThresholdPS = 1e-10,verbose=3)
 
+load("./processed_data/WGCNA QC/tsc_regions_consensus-small-block1.Rdata")
+
+matTOM = as.matrix(consTomDS)
 
 moduleColors = net$colors
 consTree = net$dendrograms[[1]]
 
-geneSigsColors = multiExpr[[1]]$geneColors[,good_genes]
+geneSigsColors = multiExpr[[1]]$geneColors
 
 colors = cbind(moduleColors, t(geneSigsColors))
 traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN + datMeta$seqPC1 + datMeta$seqPC2))
-trait_labels = colnames(traitmat)
+trait_labels = substr(colnames(traitmat), 9, nchar(colnames(traitmat))) #remove "datMeta$" from variable names
 
 
-pdf(file="../figures/Consensus modules.pdf")
-sizeGrWindow(8,6)
+
+pdf(file="../figures/Consensus modules unsigned.pdf")
 plotDendroAndColors(consTree, colors=colors,
-                    groupLabels=c("Consensus modules", trait_labels),
+                    groupLabels=c("Modules", trait_labels),
                     dendroLabels = FALSE, hang = 0.03,
                     addGuide = TRUE, guideHang = 0.05,
-                    main = "Consensus gene dendrogram and module colors")
+                    main = "Consensus gene dendrogram")
 dev.off()
 
 
@@ -253,9 +256,9 @@ for(mod in unique_colors) {
   numconnections2keep = 500
   MMtoDisp = MM[1:numgenesingraph]
   
-  #----------------
   idx = which(colnames(multiExpr[[1]]$data) %in% module_genes)
-  modTOM = (full(consTomDS)[module_genes,module_genes])
+  #----------------
+  modTOM = matTOM[idx,idx]
   dimnames(modTOM) = list(genes, genes)
   
   reducedTOM = modTOM
@@ -326,7 +329,7 @@ plot.igraph(g2, vertex.label = geneSymbols, add=T,
             edge.width = 4*E(g1)$weight^4)
 
 
-##PPI
+##PPI (protein-protein interaction)
 ppi3 = ppiMat
 ppi3[ppiMat>0] = 1
 deg3 = apply(ppi3,2,sum)
