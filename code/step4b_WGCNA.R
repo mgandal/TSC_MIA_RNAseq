@@ -218,7 +218,7 @@ traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta
 trait_labels = colnames(traitmat)
 
 
-pdf("../figures/Consensus modules.pdf")
+pdf(file="../figures/Consensus modules.pdf")
 sizeGrWindow(8,6)
 plotDendroAndColors(consTree, colors=colors,
                     groupLabels=c("Consensus modules", trait_labels),
