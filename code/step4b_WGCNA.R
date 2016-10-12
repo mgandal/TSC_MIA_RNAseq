@@ -6,33 +6,38 @@ datExpr.vst = varianceStabilizingTransformation(dds.global)
 datExpr.vst = assay(datExpr.vst)
 dE = datExpr.vst
 
+X = model.matrix(~RIN + Hemisphere + seqPC1 + seqPC2, data=datMeta) 
+beta  = (solve(t(X) %*% X) %*%t(X)) %*% t(Y)
+
+dE.regressed = dE - t(X[,2:5] %*% beta[2:5,])
+
 
 #set up expression MS
 multiExpr = vector(mode="list", length=1)
-multiExpr[[1]] = list(data=as.data.frame(t(dE)), meta=datMeta)
-multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
-multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
-multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
+multiExpr[[1]] = list(data=as.data.frame(t(dE.regressed)), meta=datMeta)
+multiExpr[[2]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
+multiExpr[[3]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="HC"])), meta= datMeta.hc)
+multiExpr[[4]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
 names(multiExpr) = c("ALL", "Cortical", "HC", "PFC")
 
 
 #Subselect genes to filter out ones with poor expression
 g <- goodSamplesGenesMS(multiExpr)
 good_genes <- which(g$goodGenes == TRUE)
-dE = dE[good_genes,]
+dE.regressed = dE.regressed[good_genes,]
 
-multiExpr[[1]] = list(data=as.data.frame(t(dE)), meta=datMeta)
-multiExpr[[2]] = list(data=as.data.frame(t(dE[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
-multiExpr[[3]] = list(data=as.data.frame(t(dE[,datMeta$Region=="HC"])), meta= datMeta.hc)
-multiExpr[[4]] = list(data=as.data.frame(t(dE[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
+multiExpr[[1]] = list(data=as.data.frame(t(dE.regressed)), meta=datMeta)
+multiExpr[[2]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
+multiExpr[[3]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="HC"])), meta= datMeta.hc)
+multiExpr[[4]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
 
-write.csv(multiExpr, "../data/multiExpr QC.csv")
+write.csv(multiExpr, "../data/multiExpr regr.csv")
 
 ##Step 1 Choose Soft Threshold Power 
 
 if(TRUE)
 {
-  pdf(file="../figures/Soft threshold power graphs QC.pdf")
+  pdf(file="../figures/Soft threshold power graphs regr.pdf")
   bsize=6000
   powers=seq(2,30,by=2)
   for(n in 1:length(multiExpr)) { 
@@ -52,7 +57,8 @@ if(TRUE)
 
 
 #chosen_powers = c(18,14,14,10) #non-QC model
-chosen_powers = c(18, 8, 10, 10) #QC model
+#chosen_powers = c(18, 8, 10, 10) #QC model
+chosen_powers = c(8, 8, 8, 8) #regressed model
 wgcna_parameters = list(powers = chosen_powers)
 wgcna_parameters$minModSize = 100
 wgcna_parameters$minHeight = 0.1
@@ -68,13 +74,13 @@ if(TRUE) {
     t_start <- Sys.time()
     ##Calculate TOM, save to file
     rootdir = getwd()
-    filenm <- paste(rootdir, "/processed_data/WGCNA QC/network_signed_exprSet_cqn.noregress_", as.character(n),sep="")
+    filenm <- paste(rootdir, "/processed_data/WGCNA QC/network_signed_exprSet_cqn.regress_", as.character(n),sep="")
     multiExpr[[n]]$netData = blockwiseModules(datExpr=multiExpr[[n]]$data, maxBlockSize=wgcna_parameters$bsize, networkType=wgcna_parameters$networkType, corType = wgcna_parameters$corFnc ,  power = wgcna_parameters$powers[n], mergeCutHeight= wgcna_parameters$minHeight, nThreads=23, 
                                               saveTOMFileBase=filenm, saveTOMs=TRUE, minModuleSize= wgcna_parameters$minModSize, pamStage=wgcna_parameters$pamStage, reassignThreshold=1e-6, verbose = 3, deepSplit=wgcna_parameters$ds)
     t_end <- Sys.time()
     t = t_end-t_start
     print(t)
-    save(multiExpr, file = "multiExpr QC")
+    save(multiExpr, file = "multiExpr regr")
   }
 }
 
@@ -84,13 +90,13 @@ load("multiExpr QC")
 #merge modules and produce dendrograms for each region
 pdf(file="../figures/Modules figures QC unsigned.pdf")
 
-pdf(file="../figures/Significant modules.pdf")
+pdf(file="../figures/Significant modules regr.pdf")
 
 calc_MEs = FALSE
 
 for (set.idx in 1:length(multiExpr)){
   
-  load(paste("./processed_data/WGCNA QC/network_signed_exprSet_cqn.noregress_", as.character(set.idx),sep="", "-block.1.RData"))
+  load(paste("./processed_data/WGCNA QC/network_signed_exprSet_cqn.regress_", as.character(set.idx),sep="", "-block.1.RData"))
   
   
   if(calc_MEs){
@@ -104,10 +110,10 @@ for (set.idx in 1:length(multiExpr)){
   #table(colors)
   
   MEs = moduleEigengenes(expr = (multiExpr[[set.idx]]$data), colors = labels2colors(merged$colors), softPower = wgcna_parameters$powers[set.idx])
-  save(MEs, file = paste("../data/MEs/MEs", regions[set.idx], sep = "-"))
+  save(MEs, file = paste("../data/MEs/MEs regr", regions[set.idx], sep = "-"))
   
   kME = signedKME(multiExpr[[set.idx]]$data, MEs$eigengenes,corFnc = "bicor")
-  save(kME, file = paste("../data/MEs/kMEs", regions[set.idx], sep = "-"))
+  save(kME, file = paste("../data/MEs/kMEs regr", regions[set.idx], sep = "-"))
   }
   
   
@@ -117,11 +123,11 @@ for (set.idx in 1:length(multiExpr)){
     datMeta_curr = datMeta[which(datMeta$Region == toupper(regions[set.idx])),]
   }
   
-  load(paste("../data/MEs/MEs", regions[set.idx], sep = "-"))
-  load(paste("../data/MEs/kMEs", regions[set.idx], sep = "-"))
+  load(paste("../data/MEs/MEs regr", regions[set.idx], sep = "-"))
+  load(paste("../data/MEs/kMEs regr", regions[set.idx], sep = "-"))
 
   
-  #Loop through each eigengene and assess statistical significance with group using ANOVA
+  #Loop through each eigengene and assess statistical significance with group
   for(i in 1:ncol(MEs$eigengenes)) {
     m = colnames(MEs$eigengenes)[i];
     c = substr(m,3,nchar(m))
@@ -132,32 +138,27 @@ for (set.idx in 1:length(multiExpr)){
     expr = MEs$eigengenes[,i]
     
     if(regions[set.idx]!="all"){
-      a = anova(lm(expr ~ Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr)) 
+      a = summary(lm(expr ~ Genotype + Treatment, data=datMeta_curr)) 
       } else{
-        a = anova(lm(expr ~ Region + Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr)) 
+        a = summary(lm(expr ~ Region + Genotype + Treatment, data=datMeta_curr)) 
       }
     
     
-    gen_p = a["Genotype","Pr(>F)"]
-    treat_p = a["Treatment","Pr(>F)"]
-    reg_p = 1
-    
-    if(regions[set.idx]=="all"){
-      reg_p = a["Region","Pr(>F)"]
-    }
+    gen_p = a$coefficients["GenotypeHet","Pr(>|t|)"]
+    treat_p = a$coefficients["TreatmentPolyIC","Pr(>|t|)"]
     
     
-    if(gen_p < 0.05 || treat_p < 0.05 || reg_p < 0.05) {
+    if(gen_p < 0.05 || treat_p < 0.05) {
       title <- paste(regions[set.idx],m)
-      if(reg_p < 0.05){
-        title <- paste(title, "Reg", reg_p)
-      }
       if(gen_p < 0.05){
         title <- paste(title, "Gen", gen_p)
+        boxplot(expr ~ datMeta_curr$Genotype, main = paste(regions[set.idx],m,"Gen"))
       } 
       if(treat_p < 0.05){
         title <- paste(title, "Treat", treat_p)
+        boxplot(expr ~ datMeta_curr$Treatment, main = paste(regions[set.idx],m,"Treat"))
       }
+      
       
       #plot hub genes
       hub_genes=colnames(multiExpr[[set.idx]]$data)[order(kME[,i],decreasing = T)[1:25]]
@@ -180,19 +181,19 @@ for (set.idx in 1:length(multiExpr)){
                   main = title)
       
       
-#       c = substr(m,3,nchar(m))
-#       go.mus = gprofiler(datProbes$ensembl_gene_id[colors==c], organism="mmusculus", custom_bg = datProbes$ensembl_gene_id, 
-#                          correction_method = "fdr",hier_filtering = "moderate", ordered_query = F, significant = T, exclude_iea = F,
-#                          region_query = F,max_p_value = 0.05, max_set_size=1000, numeric_ns = "",
-#                          include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
-#       go = go.mus[order(go.mus$p.value),]
-#       
-#       par(oma=c(0,15,0,0));
-#       if(nrow(go)>0) {
-#         bp = barplot(-log10(as.numeric(na.omit(go$p.value[10:1]))), main=paste(c, "Module"), horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
-#         axis(2,at=bp,labels=na.omit(go$term.name[10:1]),tick=FALSE,las=2,cex.axis=.7);
-#         abline(v=-log10(0.05), col="red", lwd=2,lty=2)
-#       }
+      c = substr(m,3,nchar(m))
+      go.mus = gprofiler(datProbes$ensembl_gene_id[colors==c], organism="mmusculus", custom_bg = datProbes$ensembl_gene_id, 
+                         correction_method = "fdr",hier_filtering = "moderate", ordered_query = F, significant = T, exclude_iea = F,
+                         region_query = F,max_p_value = 0.05, max_set_size=1000, numeric_ns = "",
+                         include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
+      go = go.mus[order(go.mus$p.value),]
+      
+      #par(oma=c(0,15,0,0));
+      if(nrow(go)>0) {
+        bp = barplot(-log10(as.numeric(na.omit(go$p.value[10:1]))), main=paste(c, "Module"), horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
+        axis(2,at=bp,labels=na.omit(go$term.name[10:1]),tick=FALSE,las=2,cex.axis=.7);
+        abline(v=-log10(0.05), col="red", lwd=2,lty=2)
+      }
     }
   }
 }
@@ -452,4 +453,16 @@ plot.igraph(g2, vertex.label = "",
             edge.width=3)
 }
 
+
+
+
+Y = datExpr.vst
+X = model.matrix(~RIN + Hemisphere + seqPC1 + seqPC2, data=datMeta) 
+beta  = (solve(t(X) %*% X) %*%t(X)) %*% t(Y)
+
+Y.regressed = Y - t(X[,2:5] %*% beta[2:5,])
+
+
+expr = datExpr.vst[1,]
+beta2 = lm(expr ~ RIN + Hemisphere + seqPC1 + seqPC2, data=datMeta)
 
