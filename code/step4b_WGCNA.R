@@ -88,11 +88,11 @@ if(TRUE) {
 load("multiExpr QC")
 
 #merge modules and produce dendrograms for each region
-pdf(file="../figures/Modules figures QC unsigned.pdf")
+pdf(file="../figures/Modules figures regr.pdf")
 
 pdf(file="../figures/Significant modules regr.pdf")
 
-calc_MEs = FALSE
+calc_MEs = TRUE; stats = FALSE;
 
 for (set.idx in 1:length(multiExpr)){
   
@@ -128,6 +128,7 @@ for (set.idx in 1:length(multiExpr)){
 
   
   #Loop through each eigengene and assess statistical significance with group
+  if(stats){
   for(i in 1:ncol(MEs$eigengenes)) {
     m = colnames(MEs$eigengenes)[i];
     c = substr(m,3,nchar(m))
@@ -196,20 +197,16 @@ for (set.idx in 1:length(multiExpr)){
       }
     }
   }
-}
-dev.off()
+  }
+#}
+#dev.off()
   
-
-  pairwise.t.test(expr,datMeta$Group:datMeta$Region, p.adjust.method = "for")
-  
-  
-
 
   ##Gene-level WGCNA
   
   #for aggregate of regions
   if (regions[set.idx] == "all"){
-    traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN + datMeta$seqPC1 + datMeta$seqPC2))
+    traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment))
     rownames(traitmat) = rownames(datMeta)
     
     geneSigs = matrix(NA, nrow= ncol(traitmat), ncol = ncol(multiExpr[[set.idx]]$data))
@@ -224,11 +221,11 @@ dev.off()
       RegionPFCr = bicor(traitmat[,"datMeta$RegionPFC"], exprvec, use="pairwise.complete.obs")
       Genotyper = bicor(traitmat[,"datMeta$GenotypeHet"], exprvec, use="pairwise.complete.obs")
       Treatmentr = bicor(traitmat[,"datMeta$TreatmentPolyIC"], exprvec, use="pairwise.complete.obs")
-      Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
-      rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
-      seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
-      seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
-      geneSigs[,i] = c(RegionCBLr, RegionHCr, RegionPFCr, Genotyper, Treatmentr, Hemispherer, rinr, seqPC1r, seqPC2r)
+      #Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
+      #rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
+      #seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
+      #seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
+      geneSigs[,i] = c(RegionCBLr, RegionHCr, RegionPFCr, Genotyper, Treatmentr)
    }
     
   
@@ -237,19 +234,19 @@ dev.off()
     #generate traitmat for that region
   } else{
       if(regions[set.idx] == "cbl"){
-      traitmat = as.matrix(model.matrix(~datMeta.cbl$Genotype + datMeta.cbl$Treatment + datMeta.cbl$Hemisphere + datMeta.cbl$RIN + datMeta.cbl$seqPC1 + datMeta.cbl$seqPC2))
+      traitmat = as.matrix(model.matrix(~datMeta.cbl$Genotype + datMeta.cbl$Treatment)) # + datMeta.cbl$Hemisphere + datMeta.cbl$RIN + datMeta.cbl$seqPC1 + datMeta.cbl$seqPC2))
       traitmat = traitmat[,-1]
       rownames(traitmat) = rownames(datMeta.cbl)
       } else if(regions[set.idx] == "hc") {
-        traitmat = as.matrix(model.matrix(~datMeta.hc$Genotype + datMeta.hc$Treatment + datMeta.hc$Hemisphere + datMeta.hc$RIN + datMeta.hc$seqPC1 + datMeta.hc$seqPC2))
+        traitmat = as.matrix(model.matrix(~datMeta.hc$Genotype + datMeta.hc$Treatment)) # + datMeta.hc$Hemisphere + datMeta.hc$RIN + datMeta.hc$seqPC1 + datMeta.hc$seqPC2))
         traitmat = traitmat[,-1]
         rownames(traitmat) = rownames(datMeta.hc)
       } else if(regions[set.idx] == "pfc") {
-        traitmat = as.matrix(model.matrix(~datMeta.pfc$Genotype + datMeta.pfc$Treatment + datMeta.pfc$Hemisphere + datMeta.pfc$RIN + datMeta.pfc$seqPC1 + datMeta.pfc$seqPC2))
+        traitmat = as.matrix(model.matrix(~datMeta.pfc$Genotype + datMeta.pfc$Treatment)) # + datMeta.pfc$Hemisphere + datMeta.pfc$RIN + datMeta.pfc$seqPC1 + datMeta.pfc$seqPC2))
         traitmat = traitmat[,-1]
         rownames(traitmat) = rownames(datMeta.pfc)
       }
-    colnames(traitmat) = c("datMeta$GenotypeHet", "datMeta$TreatmentPolyIC", "datMeta$HemisphereR", "datMeta$RIN", "datMeta$seqPC1", "datMeta$seqPC2")
+    colnames(traitmat) = c("datMeta$GenotypeHet", "datMeta$TreatmentPolyIC") # "datMeta$HemisphereR", "datMeta$RIN", "datMeta$seqPC1", "datMeta$seqPC2")
     geneSigs = matrix(NA, nrow= ncol(traitmat), ncol = ncol(multiExpr[[set.idx]]$data))
     
     
@@ -259,28 +256,26 @@ dev.off()
       
       Genotyper = bicor(traitmat[,"datMeta$GenotypeHet"], exprvec, use="pairwise.complete.obs")
       Treatmentr = bicor(traitmat[,"datMeta$TreatmentPolyIC"], exprvec, use="pairwise.complete.obs")
-      Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
-      rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
-      seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
-      seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
+      #Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
+      #rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
+      #seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
+      #seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
       
-      geneSigs[,i] = c(Genotyper, Treatmentr, Hemispherer, rinr, seqPC1r, seqPC2r)
+      geneSigs[,i] = c(Genotyper, Treatmentr) #, Hemispherer, rinr, seqPC1r, seqPC2r)
     }
   }
   
   multiExpr[[set.idx]]$geneSigs = geneSigs
   
-  
+  #come up with colors to represent geneSigs
   geneSigsColors <- matrix(0, dim(geneSigs)[1], dim(geneSigs)[2])
   for (i in 1:ncol(traitmat)) {
-    geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,])^2, blueWhiteRed(100), signed=FALSE, centered = TRUE, lim=c(0,1))
-    #geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,]), blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(-1,1))
+    #geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,])^2, blueWhiteRed(100), signed=FALSE, centered = TRUE, lim=c(0,1))
+    geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,]), blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(-1,1))
     if (i >= ncol(traitmat)-1){
       geneSigsColors[i,] = numbers2colors(as.numeric(geneSigs[i,]), blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(-1,1))
     }
   }
-  
-  
   multiExpr[[set.idx]]$geneColors = geneSigsColors
   
   colors = cbind(labels2colors(merged$colors), t(geneSigsColors))
@@ -291,7 +286,7 @@ dev.off()
 }
 dev.off()
 
-save(multiExpr, file = "multiExpr QC")
+save(multiExpr, file = "multiExpr regr")
 
 
 
