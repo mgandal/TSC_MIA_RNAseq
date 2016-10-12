@@ -1,8 +1,8 @@
 options(stringsAsFactors = F)
 
-#rm(list=ls()) #Clear workspace
+rm(list=ls()) #Clear workspace
 
-setwd("/Users/sepid/Documents/Geschwind Lab/TSC_MIA_RNAseq/code")
+#setwd("/Users/sepid/Documents/Geschwind Lab/TSC_MIA_RNAseq/code")
 
 pdf(file="../figures/TSC graphs QC.pdf")
 
@@ -26,8 +26,7 @@ load("../data/HTseqCounts.RData")
 RIN_data <- read.csv("../data/Processed Silva_TSC_MIA_MsRNAseq20160510.csv")
 
 
-#Import Raw Data
-#Meta Data
+#Organize Meta Data
 datMeta$Genotype = "Het"
 datMeta$Genotype[datMeta$Subject %in% c(442,466,469)] = "WT"
 datMeta$Genotype <- as.factor(datMeta$Genotype)
@@ -40,6 +39,9 @@ datMeta$Treatment <- as.factor(datMeta$Treatment)
 datMeta$Treatment <- relevel(datMeta$Treatment, "Saline")
 
 datMeta$Group = as.factor(paste(datMeta$Genotype, "_", datMeta$Treatment,sep=""))
+
+datMeta$Region <- as.factor(datMeta$Region)
+
 
 idx = match(datMeta$Sample, gsub("_","-",RIN_data$Sample))
 datMeta$RIN = RIN_data$RNA.RIN[idx]
@@ -133,7 +135,6 @@ plot(mds$points, col=as.factor(datMeta$Treatment), pch=16,main="MDS Plot by Trea
 
 
 tree = hclust(dist(t(datExpr.cpm)), method = "average");   
-plot(tree)
 rin_col = numbers2colors(datMeta$RIN, blueWhiteRed(100), signed=TRUE, centered = TRUE, lim=c(0,10))
 seqdepth_col = numbers2colors(datMeta$SeqDepth)
 seqPC1_col = numbers2colors(datMeta$seqPC1)
@@ -242,8 +243,10 @@ for (reg_ind in 1:length(regions)){
       plot(curr_res$log2FoldChange, -log10(curr_res$padj), xlab="Log2 Fold Change", ylab="log10(P.adj)",pch=19,col=c,cex=.5, xlim = c(-2,2), ylim=c(0,maxp))
       idx = which(curr_res$padj<0.05)
       points(curr_res$log2FoldChange[idx], -log10(curr_res$padj)[idx],col="red",cex=0.6)
-      idx = which(curr_res$padj<0.005)
-      text(curr_res$log2FoldChange[idx], -log10(curr_res$padj)[idx], labels = datProbes$external_gene_name[idx],cex=.5, pos = 3)
+      idx = which(curr_res$padj<0.0000001)
+      if(length(idx) > 0){
+      text(curr_res$log2FoldChange[idx], -log10(curr_res$padj)[idx], labels = datProbes$external_gene_name[idx],cex=.5, pos = 2)
+      }
     }
     
     
@@ -261,6 +264,8 @@ for (reg_ind in 1:length(regions)){
     
     
     #downregulated GO
+    
+    #access gprofiler for GO
     query = rownames(dge.down)
     
     go.mus = gprofiler(query, organism="mmusculus", custom_bg = datProbes$ensembl_gene_id, 
@@ -269,6 +274,12 @@ for (reg_ind in 1:length(regions)){
                        include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
     go = go.mus[order(go.mus$p.value),]
     
+    saveRDS(go, file = paste("../data/regulated genes lists QC/go down", curr_reg, contrast, ".RDS"))
+    
+    
+    #read in saved GO
+    go <- readRDS(paste("../data/regulated genes lists QC/go down", curr_reg, contrast, ".RDS"))
+  
     if (nrow(go) > 0){
       par(oma=c(0,15,0,0))
       ttl = paste("GO downregulated", contrast, curr_reg)
@@ -280,6 +291,8 @@ for (reg_ind in 1:length(regions)){
     
     
     #upregulated GO
+    
+    #access gprofiler for GO
     query = rownames(dge.up)[order(dge.up$log2FoldChange, decreasing = T)]
     
     go.mus = gprofiler(query, organism="mmusculus", custom_bg = datProbes$ensembl_gene_id,
@@ -288,6 +301,13 @@ for (reg_ind in 1:length(regions)){
                        include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
     
     go = go.mus[order(go.mus$p.value),]
+
+    saveRDS(go, file = paste("../data/regulated genes lists QC/go up", curr_reg, contrast, ".RDS"))
+    
+    
+    
+    #read in saved GO
+    go <- readRDS(paste("../data/regulated genes lists QC/go up", curr_reg, contrast, ".RDS"))
     
     
     if (nrow(go) > 0){

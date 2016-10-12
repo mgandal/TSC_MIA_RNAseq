@@ -84,10 +84,16 @@ load("multiExpr QC")
 #merge modules and produce dendrograms for each region
 pdf(file="../figures/Modules figures QC unsigned.pdf")
 
+pdf(file="../figures/Significant modules.pdf")
+
+calc_MEs = FALSE
+
 for (set.idx in 1:length(multiExpr)){
   
   load(paste("./processed_data/WGCNA QC/network_signed_exprSet_cqn.noregress_", as.character(set.idx),sep="", "-block.1.RData"))
   
+  
+  if(calc_MEs){
   geneTree = hclust(as.dist(1-TOM), method = "average"); 
   colors = vector(mode="list"); labels = vector(mode="list"); labels=""
   pam=F; minModSize=100; ds=2; dthresh=0.1
@@ -102,7 +108,101 @@ for (set.idx in 1:length(multiExpr)){
   
   kME = signedKME(multiExpr[[set.idx]]$data, MEs$eigengenes,corFnc = "bicor")
   save(kME, file = paste("../data/MEs/kMEs", regions[set.idx], sep = "-"))
+  }
   
+  
+  #subselect correct samples from datMeta
+  datMeta_curr = datMeta
+  if(regions[set.idx]!="all"){
+    datMeta_curr = datMeta[which(datMeta$Region == toupper(regions[set.idx])),]
+  }
+  
+  load(paste("../data/MEs/MEs", regions[set.idx], sep = "-"))
+  load(paste("../data/MEs/kMEs", regions[set.idx], sep = "-"))
+
+  
+  #Loop through each eigengene and assess statistical significance with group using ANOVA
+  for(i in 1:ncol(MEs$eigengenes)) {
+    m = colnames(MEs$eigengenes)[i];
+    c = substr(m,3,nchar(m))
+    
+    dat= cbind(data.frame(ME = unlist(MEs$eigengenes[m])), datMeta_curr)
+    #ggplot(dat, aes(x=MIA, y=ME)) + geom_boxplot() + geom_point(aes(color=Group), position=position_jitter(.1),size=3) + facet_wrap(~Region) + ggtitle(m)
+    
+    expr = MEs$eigengenes[,i]
+    
+    if(regions[set.idx]!="all"){
+      a = anova(lm(expr ~ Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr)) 
+      } else{
+        a = anova(lm(expr ~ Region + Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr)) 
+      }
+    
+    
+    gen_p = a["Genotype","Pr(>F)"]
+    treat_p = a["Treatment","Pr(>F)"]
+    reg_p = 1
+    
+    if(regions[set.idx]=="all"){
+      reg_p = a["Region","Pr(>F)"]
+    }
+    
+    
+    if(gen_p < 0.05 || treat_p < 0.05 || reg_p < 0.05) {
+      title <- paste(regions[set.idx],m)
+      if(reg_p < 0.05){
+        title <- paste(title, "Reg", reg_p)
+      }
+      if(gen_p < 0.05){
+        title <- paste(title, "Gen", gen_p)
+      } 
+      if(treat_p < 0.05){
+        title <- paste(title, "Treat", treat_p)
+      }
+      
+      #plot hub genes
+      hub_genes=colnames(multiExpr[[set.idx]]$data)[order(kME[,i],decreasing = T)[1:25]]
+      hub_gene.symbol = datProbes$external_gene_name[order(kME[,i],decreasing = T)[1:25]]
+      hub_gene.symbol[hub_gene.symbol==""] = hub_genes[hub_gene.symbol==""]
+      gene_idx = match(hub_genes,colnames(multiExpr[[set.idx]]$data))
+      adjMat = adjacency((multiExpr[[set.idx]]$data[,gene_idx]),type = "signed",corFnc = "bicor")
+      adjMat[adjMat<=0]=0
+      g1 <- graph.adjacency(as.matrix(adjMat),mode="undirected",weighted=T,diag=FALSE)
+      
+      plot.igraph(g1, vertex.label = hub_gene.symbol,
+                  vertex.label.dist=0.3, 
+                  vertex.size=4,
+                  vertex.label.color="black",
+                  vertex.color = c,
+                  vertex.label.cex=0.7,
+                  vertex.frame.color="black",
+                  layout=layout.fruchterman.reingold(g1),
+                  edge.color="green",
+                  main = title)
+      
+      
+#       c = substr(m,3,nchar(m))
+#       go.mus = gprofiler(datProbes$ensembl_gene_id[colors==c], organism="mmusculus", custom_bg = datProbes$ensembl_gene_id, 
+#                          correction_method = "fdr",hier_filtering = "moderate", ordered_query = F, significant = T, exclude_iea = F,
+#                          region_query = F,max_p_value = 0.05, max_set_size=1000, numeric_ns = "",
+#                          include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
+#       go = go.mus[order(go.mus$p.value),]
+#       
+#       par(oma=c(0,15,0,0));
+#       if(nrow(go)>0) {
+#         bp = barplot(-log10(as.numeric(na.omit(go$p.value[10:1]))), main=paste(c, "Module"), horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
+#         axis(2,at=bp,labels=na.omit(go$term.name[10:1]),tick=FALSE,las=2,cex.axis=.7);
+#         abline(v=-log10(0.05), col="red", lwd=2,lty=2)
+#       }
+    }
+  }
+}
+dev.off()
+  
+
+  pairwise.t.test(expr,datMeta$Group:datMeta$Region, p.adjust.method = "for")
+  
+  
+
 
   ##Gene-level WGCNA
   
@@ -201,8 +301,8 @@ multiExpr_reg[[1]] <- NULL
 
 net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[2:4],
                                 networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
-                                consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus-small-block%b.Rdata",
-                                consensusQuantile = 0.2, deepSplit = 4, pamStage = FALSE, 
+                                consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus2-small-block%b.Rdata",
+                                consensusQuantile = 0.2, deepSplit = 2, pamStage = FALSE, 
                                 detectCutHeight = 0.995, mergeCutHeight = 0.2, 
                                 minModuleSize = 100, 
                                 reassignThresholdPS = 1e-10,verbose=3)
@@ -238,7 +338,7 @@ consMEs = merge(consMEs, net$multiMEs[[3]], all=TRUE)
 kME = signedKME(multiExpr[[1]]$data, consMEs, corFnc = "bicor")
 
 
-
+if(FALSE){
 #Make web plot for consensus network
 #---------------------------------
 pdf("./figures/ConsensusModulesNetworks.pdf", height=8, width=8)
@@ -282,6 +382,7 @@ for(mod in unique_colors) {
 }
 
 dev.off()
+
 
 
 adjMat = covAll^1
@@ -349,6 +450,6 @@ plot.igraph(g2, vertex.label = "",
             layout=layoutFR,
             edge.color="gray",
             edge.width=3)
-
+}
 
 
