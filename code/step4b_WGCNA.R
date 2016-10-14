@@ -88,16 +88,16 @@ if(TRUE) {
 load("multiExpr QC")
 
 #merge modules and produce dendrograms for each region
-pdf(file="../figures/Modules figures regr.pdf")
+pdf(file="../figures/Consensus modules figures regr.pdf")
 
-pdf(file="../figures/Significant modules regr.pdf")
+pdf(file="../figures/Consensus significant modules regr.pdf")
 
-calc_MEs = TRUE; stats = FALSE;
+calc_MEs = FALSE; stats = TRUE;
 
 for (set.idx in 1:length(multiExpr)){
   
-  load(paste("./processed_data/WGCNA QC/network_signed_exprSet_cqn.regress_", as.character(set.idx),sep="", "-block.1.RData"))
-  
+  #load(paste("./processed_data/WGCNA QC/network_signed_exprSet_cqn.regress_", as.character(set.idx),sep="", "-block.1.RData"))
+  load(paste("./processed_data/WGCNA QC/tsc_consensus_regr-small-block1.Rdata"))
   
   if(calc_MEs){
   geneTree = hclust(as.dist(1-TOM), method = "average"); 
@@ -110,10 +110,10 @@ for (set.idx in 1:length(multiExpr)){
   #table(colors)
   
   MEs = moduleEigengenes(expr = (multiExpr[[set.idx]]$data), colors = labels2colors(merged$colors), softPower = wgcna_parameters$powers[set.idx])
-  save(MEs, file = paste("../data/MEs/MEs regr", regions[set.idx], sep = "-"))
+  save(MEs, file = paste("../data/MEs/MEs cons regr", regions[set.idx], sep = "-"))
   
   kME = signedKME(multiExpr[[set.idx]]$data, MEs$eigengenes,corFnc = "bicor")
-  save(kME, file = paste("../data/MEs/kMEs regr", regions[set.idx], sep = "-"))
+  save(kME, file = paste("../data/MEs/kMEs cons regr", regions[set.idx], sep = "-"))
   }
   
   
@@ -123,20 +123,21 @@ for (set.idx in 1:length(multiExpr)){
     datMeta_curr = datMeta[which(datMeta$Region == toupper(regions[set.idx])),]
   }
   
-  load(paste("../data/MEs/MEs regr", regions[set.idx], sep = "-"))
-  load(paste("../data/MEs/kMEs regr", regions[set.idx], sep = "-"))
+  #load(paste("../data/MEs/MEs cons regr", regions[set.idx], sep = "-"))
+  #load(paste("../data/MEs/kMEs cons regr", regions[set.idx], sep = "-"))
 
   
   #Loop through each eigengene and assess statistical significance with group
   if(stats){
-  for(i in 1:ncol(MEs$eigengenes)) {
-    m = colnames(MEs$eigengenes)[i];
-    c = substr(m,3,nchar(m))
+  for(i in 1:ncol(MEs)) { #MEs$eigengenes
+    m = colnames(MEs)[i]; #MEs$eigengenes
+    #c = substr(m,3,nchar(m))
+    c = substr(m,8,nchar(m))
     
-    dat= cbind(data.frame(ME = unlist(MEs$eigengenes[m])), datMeta_curr)
+    dat= cbind(data.frame(ME = unlist(MEs[m])), datMeta_curr) #MEs$eigengenes
     #ggplot(dat, aes(x=MIA, y=ME)) + geom_boxplot() + geom_point(aes(color=Group), position=position_jitter(.1),size=3) + facet_wrap(~Region) + ggtitle(m)
     
-    expr = MEs$eigengenes[,i]
+    expr = MEs[,i] #MEs$eigengenes
     
     if(regions[set.idx]!="all"){
       a = summary(lm(expr ~ Genotype + Treatment, data=datMeta_curr)) 
@@ -297,13 +298,13 @@ multiExpr_reg[[1]] <- NULL
 
 net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[2:4],
                                 networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
-                                consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus2-small-block%b.Rdata",
+                                consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_consensus_regr-small-block%b.Rdata",
                                 consensusQuantile = 0.2, deepSplit = 2, pamStage = FALSE, 
                                 detectCutHeight = 0.995, mergeCutHeight = 0.2, 
                                 minModuleSize = 100, 
                                 reassignThresholdPS = 1e-10,verbose=3)
 
-load("./processed_data/WGCNA QC/tsc_regions_consensus-small-block1.Rdata")
+load("./processed_data/WGCNA QC/tsc_consensus_regr-small-block1.Rdata")
 
 matTOM = as.matrix(consTomDS)
 
@@ -332,6 +333,7 @@ dev.off()
 consMEs = merge(net$multiMEs[[1]], net$multiMEs[[2]], all=TRUE)
 consMEs = merge(consMEs, net$multiMEs[[3]], all=TRUE)
 kME = signedKME(multiExpr[[1]]$data, consMEs, corFnc = "bicor")
+MEs = consMEs
 
 
 if(FALSE){
@@ -451,13 +453,13 @@ plot.igraph(g2, vertex.label = "",
 
 
 
-Y = datExpr.vst
-X = model.matrix(~RIN + Hemisphere + seqPC1 + seqPC2, data=datMeta) 
-beta  = (solve(t(X) %*% X) %*%t(X)) %*% t(Y)
-
-Y.regressed = Y - t(X[,2:5] %*% beta[2:5,])
-
-
-expr = datExpr.vst[1,]
-beta2 = lm(expr ~ RIN + Hemisphere + seqPC1 + seqPC2, data=datMeta)
+# Y = datExpr.vst
+# X = model.matrix(~RIN + Hemisphere + seqPC1 + seqPC2, data=datMeta) 
+# beta  = (solve(t(X) %*% X) %*%t(X)) %*% t(Y)
+# 
+# Y.regressed = Y - t(X[,2:5] %*% beta[2:5,])
+# 
+# 
+# expr = datExpr.vst[1,]
+# beta2 = lm(expr ~ RIN + Hemisphere + seqPC1 + seqPC2, data=datMeta)
 
