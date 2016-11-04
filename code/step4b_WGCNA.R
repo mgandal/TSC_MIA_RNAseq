@@ -184,18 +184,18 @@ for (set.idx in 1:length(multiExpr)){
                   vertex.label.cex=0.7,
                   vertex.frame.color="black",
                   layout=layout.fruchterman.reingold(g1),
-                  edge.color="green",
-                  main = title)
+                  edge.color="green", main = "purple module")
+                  #main = title)
       
       
-      c = substr(m,3,nchar(m))
-      go.mus = gprofiler(datProbes$ensembl_gene_id[colors==c], organism="mmusculus", custom_bg = datProbes$ensembl_gene_id, 
+      c = substr(m,8,nchar(m))
+      go.mus = gprofiler(datProbes$ensembl_gene_id[good_genes][moduleColors==c], organism="mmusculus", custom_bg = datProbes$ensembl_gene_id, 
                          correction_method = "fdr",hier_filtering = "moderate", ordered_query = F, significant = T, exclude_iea = F,
                          region_query = F,max_p_value = 0.05, max_set_size=1000, numeric_ns = "",
                          include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
       go = go.mus[order(go.mus$p.value),]
       
-      #par(oma=c(0,15,0,0));
+      par(oma=c(0,15,0,0));
       if(nrow(go)>0) {
         bp = barplot(-log10(as.numeric(na.omit(go$p.value[10:1]))), main=paste(c, "Module"), horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
         axis(2,at=bp,labels=na.omit(go$term.name[10:1]),tick=FALSE,las=2,cex.axis=.7);
@@ -311,8 +311,8 @@ dev.off()
 
 #--------save p-values and betas for modules into data frame module_stats---------
 
-module_stats <- data.frame(matrix(0, ncol = 4, nrow = ncol(MEs)))
-names(module_stats) <- c("gen_p", "gen_beta", "treat_p", "treat_beta")
+module_stats <- data.frame(matrix(0, ncol = 2, nrow = ncol(MEs)))
+names(module_stats) <- c("grp_p", "reg_grp_p")
 rownames(module_stats) <- sapply(colnames(MEs), substr, start = 8, stop = 25)
 
 
@@ -320,12 +320,17 @@ rownames(module_stats) <- sapply(colnames(MEs), substr, start = 8, stop = 25)
 for(i in 1:ncol(MEs)) {
   expr = MEs[,i] #MEs$eigengenes
 
-  a = summary(lm(expr ~ Region + Genotype + Treatment + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr)) 
-
-  module_stats$gen_p[i] = a$coefficients["GenotypeHet","Pr(>|t|)"]
-  module_stats$treat_p[i] = a$coefficients["TreatmentPolyIC","Pr(>|t|)"]
-  module_stats$gen_beta[i] = a$coefficients["GenotypeHet","Estimate"]
-  module_stats$treat_beta[i] = a$coefficients["TreatmentPolyIC","Estimate"]
+  #a = summary(lm(expr ~ Region*Group + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr)) 
+  a = anova(lm(expr ~ Region*Group + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr))
+  
+  #module_stats$grp_p[i] = a$coefficients["Group","Pr(>F)"]
+  #module_stats$reg_grp_p[i] = a$coefficients["Region:Group","Pr(>F)"]
+  #module_stats$grp_beta[i] = a$coefficients["Group","Estimate"]
+  #module_stats$reg_grp_beta[i] = a$coefficients["Region:Group","Estimate"]
+  ps = unlist(a["Pr(>F)"])
+  names(ps) = rownames(a["Pr(>F)"])
+  module_stats$grp_p[i] = ps["Group"]
+  module_stats$reg_grp_p[i] = ps["Region:Group"]
 }
 
 
@@ -333,11 +338,10 @@ for(i in 1:ncol(MEs)) {
 #------------correct for multiple comparisons-------------
 
 mod_padj <- data.frame(matrix(0, ncol = 2, nrow = ncol(MEs)))
-names(mod_padj) <- c("gen_padj", "treat_padj")
+names(mod_padj) <- c("grp_padj", "reg_grp_padj")
 rownames(mod_padj) <- rownames(module_stats)
-mod_padj$gen_padj = p.adjust(module_stats$gen_p, method="fdr")
-mod_padj$treat_padj = p.adjust(module_stats$treat_p, method="fdr")
-
+mod_padj$grp_padj = p.adjust(module_stats$grp_p, method="fdr")
+mod_padj$reg_grp_padj = p.adjust(module_stats$reg_grp_p, method="fdr")
 
 
 
