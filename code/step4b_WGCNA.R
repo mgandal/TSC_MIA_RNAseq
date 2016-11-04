@@ -137,7 +137,6 @@ for (set.idx in 1:length(multiExpr)){
   if(stats){
   for(i in 1:ncol(MEs)) { #MEs$eigengenes
     m = colnames(MEs)[i]; #MEs$eigengenes
-    #c = substr(m,3,nchar(m))
     c = substr(m,8,nchar(m))
     
     dat= cbind(data.frame(ME = unlist(MEs[m])), datMeta_curr) #MEs$eigengenes
@@ -296,8 +295,22 @@ dev.off()
 save(multiExpr, file = "multiExpr regr")
 
 
+#------------build boxplots of module expression versus experimental condition-------------
+
+pdf(file="../figures/Module-boxplots.pdf")
+for(i in 1:ncol(MEs)){
+  m = colnames(MEs)[i]
+  c = substr(m,8,nchar(m))
+  
+  dat= cbind(data.frame(ME = unlist(MEs[m])), datMeta)
+  print(ggplot(dat, aes(x=Group, y=ME)) + geom_boxplot(aes(fill=Group)) + geom_point(position=position_jitter(.3),size=2) + facet_wrap(~Region, scales="free", nrow=3, ncol=1) + ggtitle(paste(c, "module")))
+}
+dev.off()
+
+
 
 #--------save p-values and betas for modules into data frame module_stats---------
+
 module_stats <- data.frame(matrix(0, ncol = 4, nrow = ncol(MEs)))
 names(module_stats) <- c("gen_p", "gen_beta", "treat_p", "treat_beta")
 rownames(module_stats) <- sapply(colnames(MEs), substr, start = 8, stop = 25)
@@ -317,22 +330,38 @@ for(i in 1:ncol(MEs)) {
 
 
 
-#build consensus network
-#----------------------
+#------------correct for multiple comparisons-------------
+
+mod_padj <- data.frame(matrix(0, ncol = 2, nrow = ncol(MEs)))
+names(mod_padj) <- c("gen_padj", "treat_padj")
+rownames(mod_padj) <- rownames(module_stats)
+mod_padj$gen_padj = p.adjust(module_stats$gen_p, method="fdr")
+mod_padj$treat_padj = p.adjust(module_stats$treat_p, method="fdr")
+
+
+
+
+#---------------build consensus network-------------
+
 multiExpr_reg = multiExpr
 multiExpr_reg[[2]] <- NULL
 multiExpr_reg[[1]] <- NULL
 
-net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[3:4],
+net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[2:4],
                                 networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
-                                consensusTOMFileNames = "./processed_data/WGCNA QC/cons_hcpfc_noregr-small-block%b.Rdata",
+                                consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus-small-block%b.Rdata",
                                 consensusQuantile = 0.2, deepSplit = 2, pamStage = FALSE, 
                                 detectCutHeight = 0.995, mergeCutHeight = 0.2, 
                                 minModuleSize = 100, 
                                 reassignThresholdPS = 1e-10,verbose=3)
+save(net, file="net-cons-all")
 
-load("./processed_data/WGCNA QC/cons_hcpfc_noregr-small-block1.Rdata")
+#----------load consensus network-----------
+load("./processed_data/WGCNA QC/tsc_regions_consensus-small-block1.Rdata")
+load("net-cons-all")
 
+
+#-----------dynamic tree cutting-----------------
 
 wgcna_parameters = list(powers = chosen_powers)
 wgcna_parameters$minModSize = 100
@@ -343,33 +372,35 @@ wgcna_parameters$networkType = "signed"    ## using signed networks
 wgcna_parameters$corFnc = "bicor"
 wgcna_parameters$pamStage = FALSE
 
-hcpfc_expr = rbind(multiExpr[[3]]$data, multiExpr[[4]]$data)
 
-#-----------dynamic tree cutting-----------------
+#expr = rbind(multiExpr[[3]]$data, multiExpr[[4]]$data) #HC & PFC only
+expr = multiExpr[[1]]$data
 geneTree = hclust(1-as.dist(consTomDS), method="average")
 tree = cutreeHybrid(dendro = geneTree, minClusterSize= wgcna_parameters$minModSize, pamStage=wgcna_parameters$pamStage, cutHeight = 0.999, 
                     deepSplit=wgcna_parameters$ds, distM=as.matrix(1-as.dist(consTomDS)))
-merged = mergeCloseModules(exprData= hcpfc_expr, colors = tree$labels, cutHeight=wgcna_parameters$minHeight)
+merged = mergeCloseModules(exprData= expr, colors = tree$labels, cutHeight=wgcna_parameters$minHeight)
 colors = labels2colors(merged$colors)
 
 #matTOM = as.matrix(consTomDS)
 
 
-#moduleColors = net$colors
-moduleColors = colors
-#consTree = net$dendrograms[[1]]
-consTree = geneTree
+moduleColors = net$colors
+#moduleColors = colors
+consTree = net$dendrograms[[1]]
+#consTree = geneTree
 
 traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN + datMeta$seqPC1 + datMeta$seqPC2))
-traitmat = traitmat[19:54,]
-rownames(traitmat) = rownames(datMeta[19:54,])
+#traitmat = traitmat[19:54,]
+#rownames(traitmat) = rownames(datMeta[19:54,])
+rownames(traitmat) = rownames(datMeta)
 
 geneSigs = matrix(NA, nrow= ncol(traitmat), ncol = ncol(multiExpr[[set.idx]]$data))
 
 
-#loop through genes to find correlation of that gene's expression with the various traits
+#----------loop through genes to find correlation of that gene's expression with the various traits--------
 for (i in 1:ncol(geneSigs)) {
-  exprvec = as.numeric(cbind(multiExpr[[3]]$data[,i], multiExpr[[4]]$data[,i]))
+  #exprvec = as.numeric(cbind(multiExpr[[3]]$data[,i], multiExpr[[4]]$data[,i]))
+  exprvec = multiExpr[[1]]$data[,i]
   
   RegionCBLr = bicor(traitmat[,"datMeta$RegionCBL"], exprvec, use="pairwise.complete.obs")
   RegionHCr = bicor(traitmat[,"datMeta$RegionHC"], exprvec, use="pairwise.complete.obs")
@@ -393,16 +424,20 @@ for (i in 1:ncol(traitmat)) {
 }
 
 
-
 colors = cbind(moduleColors, t(geneSigsColors))
 trait_labels = substr(colnames(traitmat), 9, nchar(colnames(traitmat))) #remove "datMeta$" from variable names
 
-colors=colors[,-2]
-trait_labels=trait_labels[-1]
+
+#-----discount cerebellum/expression correlation-----
+
+#colors=colors[,-2]
+#trait_labels=trait_labels[-1]
 
 
 
-pdf(file="../figures/Cons-pfchc-noregr.pdf")
+#----------plot consensus dendrogram and modules---------
+
+pdf(file="../figures/Cons-all-noregr.pdf")
 plotDendroAndColors(consTree, colors=colors,
                     groupLabels=c("Modules", trait_labels),
                     dendroLabels = FALSE, hang = 0.03,
@@ -412,9 +447,10 @@ dev.off()
 
 
 #-------------------calculate consensus MEs and kMEs-------------
+
 consMEs = merge(net$multiMEs[[1]], net$multiMEs[[2]], all=TRUE)
-#consMEs = merge(consMEs, net$multiMEs[[3]], all=TRUE)
-kME = signedKME(hcpfc_expr, consMEs, corFnc = "bicor")
+consMEs = merge(consMEs, net$multiMEs[[3]], all=TRUE)
+kME = signedKME(expr, consMEs, corFnc = "bicor")
 MEs = consMEs
 
 
