@@ -12,17 +12,18 @@ dE = datExpr.vst
 #beta  = (solve(t(X) %*% X) %*%t(X)) %*% t(Y)
 
 #dE.regressed = dE - t(X[,2:4] %*% beta[2:4,])
-dE.regressed = dE
+dE.regressed = dE #nothing has been regressed out here, just leaving regressed in variable name to say that this step has been completed
 
 
 
-#----------------set up expression MS------------
+#----------------Set up expression MS (multiset)------------
 multiExpr = vector(mode="list", length=1)
 multiExpr[[1]] = list(data=as.data.frame(t(dE.regressed)), meta=datMeta)
-multiExpr[[2]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
-multiExpr[[3]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="HC"])), meta= datMeta.hc)
-multiExpr[[4]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
+multiExpr[[2]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="CBL"])), meta=datMeta[datMeta$Region=="CBL",])
+multiExpr[[3]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="HC"])), meta=datMeta[datMeta$Region=="HC",])
+multiExpr[[4]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="PFC"])), meta=datMeta[datMeta$Region=="PFC",])
 names(multiExpr) = c("ALL", "CBL", "HC", "PFC")
+
 
 
 #----------------Subselect genes to filter out ones with poor expression-----------------
@@ -31,17 +32,20 @@ good_genes <- which(g$goodGenes == TRUE)
 dE.regressed = dE.regressed[good_genes,]
 
 multiExpr[[1]] = list(data=as.data.frame(t(dE.regressed)), meta=datMeta)
-multiExpr[[2]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="CBL"])), meta = datMeta.cbl)
-multiExpr[[3]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="HC"])), meta= datMeta.hc)
-multiExpr[[4]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="PFC"])), meta=datMeta.pfc)
+multiExpr[[2]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="CBL"])), meta=datMeta[datMeta$Region=="CBL",])
+multiExpr[[3]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="HC"])), meta=datMeta[datMeta$Region=="HC",])
+multiExpr[[4]] = list(data=as.data.frame(t(dE.regressed[,datMeta$Region=="PFC"])), meta=datMeta[datMeta$Region=="PFC",])
 
 #write.csv(multiExpr, "../data/multiExpr_regr_RINseq.csv")
 
-#------------choose Soft Threshold Power--------------
+
+
+
+#------------Choose Soft Threshold Power--------------
 
 if(TRUE)
 {
-  pdf(file="../figures/Soft-thresh-regr-RINseq.pdf")
+  pdf(file="../figures/Soft-thresh-het.pdf")
   bsize=6000
   powers=seq(2,30,by=2)
   for(n in 1:length(multiExpr)) { 
@@ -55,15 +59,15 @@ if(TRUE)
     plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab = "Soft threshold power", ylab = "Mean connectivity", type = "n")
     text(sft$fitIndices[,1], sft$fitIndices[,5], labels = powers, cex = 0.7, col="black")
   }
-  graphics.off()
   dev.off()
 }
 
 
 #chosen_powers = c(18,14,14,10) #non-QC model
-chosen_powers = c(18, 8, 10, 10) #QC model
+#chosen_powers = c(18, 8, 10, 10) #QC model
 #chosen_powers = c(8, 8, 8, 8) #regressed model
 #chosen_powers = c(8, 8, 6, 8) #regr RIN + seq model
+chosen_powers = c(18, 14, 14, 16) #Het only
 wgcna_parameters = list(powers = chosen_powers)
 wgcna_parameters$minModSize = 100
 wgcna_parameters$minHeight = 0.1
@@ -79,18 +83,18 @@ if(TRUE) {
     t_start <- Sys.time()
     ##Calculate TOM, save to file
     rootdir = getwd()
-    filenm <- paste(rootdir, "/processed_data/WGCNA QC/network_signed_exprSet_cqn.regress_RINseq_", as.character(n),sep="")
+    filenm <- paste(rootdir, "/processed_data/WGCNA QC/network_signed_exprSet_cqn.Het_", as.character(n),sep="")
     multiExpr[[n]]$netData = blockwiseModules(datExpr=multiExpr[[n]]$data, maxBlockSize=wgcna_parameters$bsize, networkType=wgcna_parameters$networkType, corType = wgcna_parameters$corFnc ,  power = wgcna_parameters$powers[n], mergeCutHeight= wgcna_parameters$minHeight, nThreads=23, 
                                               saveTOMFileBase=filenm, saveTOMs=TRUE, minModuleSize= wgcna_parameters$minModSize, pamStage=wgcna_parameters$pamStage, reassignThreshold=1e-6, verbose = 3, deepSplit=wgcna_parameters$ds)
     t_end <- Sys.time()
     t = t_end-t_start
     print(t)
-    save(multiExpr, file = "multiExpr-regr-RINseq")
+    save(multiExpr, file = "multiExpr-Het")
   }
 }
 
 
-load("multiExpr QC")
+#load("multiExpr QC")
 
 #merge modules and produce dendrograms for each region
 pdf(file="../figures/Consensus-regr-RINseq.pdf")
@@ -297,7 +301,7 @@ save(multiExpr, file = "multiExpr regr")
 
 #------------build boxplots of module expression versus experimental condition-------------
 
-pdf(file="../figures/Module-boxplots.pdf")
+pdf(file="../figures/Module-boxplots-Het.pdf")
 for(i in 1:ncol(MEs)){
   m = colnames(MEs)[i]
   c = substr(m,8,nchar(m))
@@ -321,7 +325,7 @@ for(i in 1:ncol(MEs)) {
   expr = MEs[,i] #MEs$eigengenes
 
   #a = summary(lm(expr ~ Region*Group + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr)) 
-  a = anova(lm(expr ~ Region*Group + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta_curr))
+  a = anova(lm(expr ~ Region*Group + Hemisphere + RIN + seqPC1 + seqPC2, data=datMeta))
   
   #module_stats$grp_p[i] = a$coefficients["Group","Pr(>F)"]
   #module_stats$reg_grp_p[i] = a$coefficients["Region:Group","Pr(>F)"]
@@ -345,28 +349,34 @@ mod_padj$reg_grp_padj = p.adjust(module_stats$reg_grp_p, method="fdr")
 
 
 
+#--------------find which modules are significant-------------------
+grp_sig = which(mod_padj$grp_padj < 0.05)
+reg_grp_sig = which(mod_padj$reg_grp_padj < 0.05)
+
+
+
 #---------------build consensus network-------------
 
 multiExpr_reg = multiExpr
-multiExpr_reg[[2]] <- NULL
+#multiExpr_reg[[2]] <- NULL
 multiExpr_reg[[1]] <- NULL
 
 net = blockwiseConsensusModules(multiExpr_reg, maxBlockSize = 20000, corType = "bicor", power = chosen_powers[2:4],
                                 networkType = "signed", saveIndividualTOMs = T, saveConsensusTOMs = T,
-                                consensusTOMFileNames = "./processed_data/WGCNA QC/tsc_regions_consensus-small-block%b.Rdata",
+                                consensusTOMFileNames = "./processed_data/WGCNA QC/Het_consensus-small-block%b.Rdata",
                                 consensusQuantile = 0.2, deepSplit = 2, pamStage = FALSE, 
                                 detectCutHeight = 0.995, mergeCutHeight = 0.2, 
                                 minModuleSize = 100, 
                                 reassignThresholdPS = 1e-10,verbose=3)
-save(net, file="net-cons-all")
+save(net, file="net-cons-het")
+save(multiExpr, file="multiExpr-Het")
 
 #----------load consensus network-----------
-load("./processed_data/WGCNA QC/tsc_regions_consensus-small-block1.Rdata")
-load("net-cons-all")
+load("./processed_data/WGCNA QC/Het_consensus-small-block1.Rdata")
+load("net-cons-het")
 
 
 #-----------dynamic tree cutting-----------------
-
 wgcna_parameters = list(powers = chosen_powers)
 wgcna_parameters$minModSize = 100
 wgcna_parameters$minHeight = 0.1
@@ -393,7 +403,7 @@ moduleColors = net$colors
 consTree = net$dendrograms[[1]]
 #consTree = geneTree
 
-traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Genotype + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN + datMeta$seqPC1 + datMeta$seqPC2))
+traitmat = as.matrix(model.matrix(~0+datMeta$Region + datMeta$Treatment + datMeta$Hemisphere + datMeta$RIN + datMeta$seqPC1 + datMeta$seqPC2))
 #traitmat = traitmat[19:54,]
 #rownames(traitmat) = rownames(datMeta[19:54,])
 rownames(traitmat) = rownames(datMeta)
@@ -409,13 +419,13 @@ for (i in 1:ncol(geneSigs)) {
   RegionCBLr = bicor(traitmat[,"datMeta$RegionCBL"], exprvec, use="pairwise.complete.obs")
   RegionHCr = bicor(traitmat[,"datMeta$RegionHC"], exprvec, use="pairwise.complete.obs")
   RegionPFCr = bicor(traitmat[,"datMeta$RegionPFC"], exprvec, use="pairwise.complete.obs")
-  Genotyper = bicor(traitmat[,"datMeta$GenotypeHet"], exprvec, use="pairwise.complete.obs")
+  #Genotyper = bicor(traitmat[,"datMeta$GenotypeHet"], exprvec, use="pairwise.complete.obs")
   Treatmentr = bicor(traitmat[,"datMeta$TreatmentPolyIC"], exprvec, use="pairwise.complete.obs")
   Hemispherer = bicor(traitmat[,"datMeta$HemisphereR"], exprvec, use="pairwise.complete.obs")
   rinr = bicor(traitmat[,"datMeta$RIN"], exprvec, use="pairwise.complete.obs")
   seqPC1r = bicor(traitmat[,"datMeta$seqPC1"], exprvec, use="pairwise.complete.obs")
   seqPC2r = bicor(traitmat[,"datMeta$seqPC2"], exprvec, use="pairwise.complete.obs")
-  geneSigs[,i] = c(RegionCBLr, RegionHCr, RegionPFCr, Genotyper, Treatmentr,Hemispherer, rinr, seqPC1r, seqPC2r)
+  geneSigs[,i] = c(RegionCBLr, RegionHCr, RegionPFCr, Treatmentr,Hemispherer, rinr, seqPC1r, seqPC2r)
 }
 
 geneSigsColors <- matrix(0, dim(geneSigs)[1], dim(geneSigs)[2])
@@ -441,7 +451,7 @@ trait_labels = substr(colnames(traitmat), 9, nchar(colnames(traitmat))) #remove 
 
 #----------plot consensus dendrogram and modules---------
 
-pdf(file="../figures/Cons-all-noregr.pdf")
+pdf(file="../figures/Cons-Het-nocut.pdf")
 plotDendroAndColors(consTree, colors=colors,
                     groupLabels=c("Modules", trait_labels),
                     dendroLabels = FALSE, hang = 0.03,
@@ -452,10 +462,12 @@ dev.off()
 
 #-------------------calculate consensus MEs and kMEs-------------
 
-consMEs = merge(net$multiMEs[[1]], net$multiMEs[[2]], all=TRUE)
-consMEs = merge(consMEs, net$multiMEs[[3]], all=TRUE)
+#consMEs = merge(net$multiMEs[[1]], net$multiMEs[[2]], all=TRUE)
+#consMEs = merge(consMEs, net$multiMEs[[3]], all=TRUE)
+consMEs = merged$newMEs
 kME = signedKME(expr, consMEs, corFnc = "bicor")
 MEs = consMEs
+
 
 
 
