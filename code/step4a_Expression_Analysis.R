@@ -149,10 +149,10 @@ for(i in 2:dim(datExpr.cpm)[2]) {     lines(density((datExpr.cpm[,i]), na.rm=T),
 
 #--------------MDS (multidimensional scaling) plots---------
 mds = cmdscale(dist(t(datExpr.cpm)), eig = T);   pc1 = mds$eig[1]^2 / sum(mds$eig^2);   pc2 = mds$eig[2]^2 / sum(mds$eig^2)
-plot(mds$points, col="grey60", pch=16,main="MDS Plot", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC1 (", signif(100*pc2,3),"%)",sep=""))
-plot(mds$points, col=as.factor(datMeta$Region), pch=16,main="MDS Plot by Region", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC1 (", signif(100*pc2,3),"%)",sep=""))
-#plot(mds$points, col=as.factor(datMeta$Genotype), pch=16,main="MDS Plot by Genotype", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC1 (", signif(100*pc2,3),"%)",sep=""))
-plot(mds$points, col=as.factor(datMeta$Treatment), pch=16,main="MDS Plot by Treatment", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC1 (", signif(100*pc2,3),"%)",sep=""))
+plot(mds$points, col="grey60", pch=16,main="MDS Plot", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC2 (", signif(100*pc2,3),"%)",sep=""))
+plot(mds$points, col=as.factor(datMeta$Region), pch=16,main="MDS Plot by Region", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC2 (", signif(100*pc2,3),"%)",sep=""), cex.lab=1.3) ; legend("topleft", levels(datMeta$Region),cex=1.5, text.col=1:length(levels(datMeta$Region)))
+#plot(mds$points, col=as.factor(datMeta$Genotype), pch=16,main="MDS Plot by Genotype", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC2 (", signif(100*pc2,3),"%)",sep=""))
+plot(mds$points, col=as.factor(datMeta$Treatment), pch=16,main="MDS Plot by Treatment", asp=1, xlab = paste("PC1 (", signif(100*pc1,3), "%)", sep=""), ylab = paste("PC2 (", signif(100*pc2,3),"%)",sep="")); legend("topleft", levels(datMeta$Treatment),cex=1, text.col=1:length(levels(datMeta$Treatment)))
 
 
 #------------------Dendrogram and trait correlations-----------
@@ -161,7 +161,7 @@ rin_col = numbers2colors(datMeta$RIN, colors=blueWhiteRed(100), signed=TRUE, cen
 seqdepth_col = numbers2colors(datMeta$SeqDepth, colors=blueWhiteRed(100), signed=TRUE, centered = TRUE)
 seqPC1_col = numbers2colors(datMeta$seqPC1, colors=blueWhiteRed(100), signed=TRUE, centered = TRUE)
 seqPC2_col = numbers2colors(datMeta$seqPC2, colors=blueWhiteRed(100), signed=TRUE, centered = TRUE)
-plotDendroAndColors(tree,colors = cbind(as.factor(datMeta$Region), as.factor(datMeta$Treatment), as.factor(datMeta$Hemisphere), seqdepth_col, rin_col, seqPC1_col, seqPC2_col), groupLabels = c("Region", "Treatment", "Hemisphere","SeqDepth", "RIN", "SeqPC1", "SeqPC2"))
+plotDendroAndColors(tree,colors = cbind(as.factor(datMeta$Region), as.factor(datMeta$Treatment), as.factor(datMeta$Hemisphere), seqdepth_col, rin_col, seqPC1_col, seqPC2_col), groupLabels = c("Region", "Treatment", "Hemisphere","SeqDepth", "RIN", "SeqPC1", "SeqPC2"), cex.lab = 1.3, cex.colorLabels = 1.1)
 
 
 
@@ -330,7 +330,7 @@ for (reg_ind in 1:length(regions)){
     
     #-------GO for upregulated genes-----
     #----Access gprofiler for GO if not already computed------
-    if(eval_GO){
+    if (eval_GO){
     query = rownames(dge.up)[order(dge.up$log2FoldChange, decreasing = T)]
     
     go.mus = gprofiler(query, organism="mmusculus", custom_bg = datProbes$ensembl_gene_id,
@@ -371,3 +371,72 @@ for (reg_ind in 1:length(regions)){
 
 dev.off()
 
+
+
+#-------------make expression boxplots for significant genes--------------
+
+datMeta$Group = relevel(datMeta$Group, "Het_Saline")
+
+pdf(file="../figures/Gene-boxplots.pdf")
+for (i in 1:length(regions)){
+  dge.up = read.csv(paste("../data/regulated genes lists QC/dge.up-Het", regions[i], "treatment .csv")) #load significantly upregulated genes
+  dge.down = read.csv(paste("../data/regulated genes lists QC/dge.down-Het", regions[i], "treatment .csv")) #load significantly downregulated genes
+  
+  if (regions[i]=="all"){
+    #------make plots for upregulated genes------
+    if(nrow(dge.up)>0){
+      for(gene_ind in 1:dim(dge.up)[1]){
+        curr_gene = dge.up$X[gene_ind]
+        expr_vec = datExpr[grep(curr_gene,rownames(datExpr)),]
+        rownames(expr_vec) = c("Expression")
+        dat = cbind(t(expr_vec),datMeta)
+        print(ggplot(dat, aes(x=Group, y=Expression)) + geom_boxplot(aes(fill=Group)) + theme(legend.position="none") 
+              + geom_point(position=position_jitter(.2),size=2) + facet_wrap(~Region, scales="free", nrow=3, ncol=1)
+              + ggtitle(paste(dge.up$gene[gene_ind], "upregulated, padj = ", dge.up$padj[gene_ind], sep=)))
+      }
+    }
+    
+    #------make plots for downregulated genes------
+    if(nrow(dge.down)>0){
+      for (gene_ind in 1:dim(dge.down)[1]){
+        curr_gene = dge.down$X[gene_ind]
+        expr_vec = datExpr[grep(curr_gene,rownames(datExpr)),]
+        rownames(expr_vec) = c("Expression")
+        dat = cbind(t(expr_vec),datMeta)
+        print(ggplot(dat, aes(x=Group, y=Expression)) + geom_boxplot(aes(fill=Group)) + theme(legend.position="none") 
+              + geom_point(position=position_jitter(.2),size=2) + facet_wrap(~Region, scales="free", nrow=3, ncol=1)
+              + ggtitle(paste(dge.down$gene[gene_ind], "downregulated, padj = ", dge.down$padj[gene_ind], sep=)))
+      }
+    }
+  }
+  
+  else{
+    #------make plots for upregulated genes------
+    if(nrow(dge.up)>0){
+      for (gene_ind in 1:dim(dge.up)[1]){
+        curr_gene = dge.up$X[gene_ind]
+        expr_vec = datExpr[grep(curr_gene,rownames(datExpr)),]
+        rownames(expr_vec) = c("Expression")
+        sample_inds = grep(toupper(regions[i]),datMeta$Region)
+        dat = cbind(t(expr_vec[sample_inds]),datMeta[sample_inds,])
+        print(ggplot(dat, aes(x=Group, y=Expression)) + geom_boxplot(aes(fill=Group)) + theme(legend.position="none")
+              + geom_point(position=position_jitter(.2),size=2) + ggtitle(paste(dge.up$gene[gene_ind], regions[i], "upregulated, padj = ", dge.up$padj[gene_ind], sep=)))
+      }
+    }
+    
+    #------make plots for downregulated genes------
+    if(nrow(dge.down)>0){
+      for (gene_ind in 1:dim(dge.down)[1]){
+        curr_gene = dge.down$X[gene_ind]
+        expr_vec = datExpr[grep(curr_gene,rownames(datExpr)),]
+        rownames(expr_vec) = c("Expression")
+        sample_inds = grep(toupper(regions[i]),datMeta$Region)
+        dat = cbind(t(expr_vec[sample_inds]),datMeta[sample_inds,])
+        print(ggplot(dat, aes(x=Group, y=Expression)) + geom_boxplot(aes(fill=Group)) + theme(legend.position="none")
+              + geom_point(position=position_jitter(.2),size=2) + ggtitle(paste(dge.down$gene[gene_ind], regions[i], "downregulated, padj = ", dge.down$padj[gene_ind], sep=)))
+      }
+    }
+  }
+}
+
+dev.off()
