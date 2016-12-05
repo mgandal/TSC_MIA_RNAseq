@@ -182,7 +182,50 @@ datMeta = datMeta[!outliers,]
 
 
 #-----------EXPRESSION ANALYSIS-----------
-#-----------Run DESeq (differential gene expression analysis) by region--------
+#-------Choose which kind of differential expression analysis will be used--------
+DE_method = "DESeq"
+DE_method = "limma"
+DE_method = "edgeR"
+
+
+
+#-----------Run differential analysis by region using limma VOOM----------
+if (DE_method == "limma"){
+  datExprvoom = voom(calcNormFactors(DGEList(datExpr)), data=datMeta)
+  design = model.matrix(~Treatment + Region + Hemisphere + RIN, data=datMeta)
+  fit <- lmFit(datExprvoom, design)
+  fit <- eBayes(fit, trend=TRUE)
+  reg_genes_limma=topTable(fit, coef=2,genelist = datProbes$external_gene_name,number = 15)
+  reg_genes_limma=reg_genes_limma[reg_genes_limma$adj.P.Val<0.1,]
+}
+
+
+#--------Run differential analysis by region using edgeR--------
+#let saline = 1 and polyIC = 2
+group <- rep(2,dim(datExpr)[2]) #subjects 420, 455, 447 treated w/ saline
+group[grep("420|455|447", colnames(datExpr))] = 1
+as.factor(group)
+y <- DGEList(counts=datExpr,group=group)
+y <- calcNormFactors(y)
+design <- model.matrix(~group)
+y <- estimateDisp(y,design)
+
+keep <- rowSums(cpm(y)>1) >= 2
+y <- y[keep, , keep.lib.sizes=FALSE]
+et <- exactTest(y)
+top_edgeR = topTags(et)
+top_edgeR = as.data.frame(top_edgeR)
+top_edgeR$Symbol = datProbes$external_gene_name[match(rownames(top_edgeR),datProbes$ensembl_gene_id)]
+top_edgeR = top_edgeR[,c(5,1:4)] #put gene symbol as first column
+top_edgeR = top_edgeR[top_edgeR$FDR<0.1,]
+
+
+
+
+
+
+#-----------Run differential analysis by region using DESeq--------
+if (DE_method == "DESeq"){
 regions = c("all", "cbl", "hc", "pfc")
 
 dds.global = DESeqDataSetFromMatrix(datExpr, datMeta, ~Treatment + Region + Hemisphere + RIN + seqPC1 + seqPC2)
@@ -215,9 +258,12 @@ dds.pfc$Treatment <- relevel(dds.pfc$Treatment, ref="Saline")
 dds <- list(dds.global, dds.cbl, dds.hc, dds.pfc)
 
 
+
+
 #--------Choose what contrasts to use on DEseq data
 #list_contrasts = c("genotype", "treatment")
 list_contrasts = c("treatment")
+
 
 
 #------------Initialize data frames to store tallies-----------  
@@ -370,6 +416,7 @@ for (reg_ind in 1:length(regions)){
 }
 
 dev.off()
+}
 
 
 
@@ -440,3 +487,35 @@ for (i in 1:length(regions)){
 }
 
 dev.off()
+
+
+#------Plot results from the 3 differential analysis methods against one another----
+reg_genes_DESeq = dge
+reg_genes_edgeR = top_edgeR
+genes = rownames(reg_genes_DESeq)[order(reg_genes_DESeq$log2FoldChange)]  #sort by increasing FC
+genes = intersect(genes, rownames(reg_genes_edgeR)) #take genes that were significant by all methods
+reg_genes_DESeq = reg_genes_DESeq[genes,]
+reg_genes_limma = reg_genes_limma[genes,]
+gene_symbols = reg_genes_limma$ID
+reg_genes_edgeR = reg_genes_edgeR[genes,]
+reg_genes_edgeR$Symbol = gene_symbols
+FC_DESeq = reg_genes_DESeq$log2FoldChange
+FC_limma = reg_genes_limma$logFC
+FC_edgeR = reg_genes_edgeR$logFC
+
+
+pdf(file="../figures/DE-comparisons.pdf")
+
+plot(FC_DESeq, FC_limma, main = paste("r = ", signif(cor(FC_DESeq, FC_limma),digits=4)))
+text(FC_DESeq, FC_limma, gene_symbols, pos = 3)
+
+plot(FC_DESeq, FC_edgeR, main = paste("r = ", signif(cor(FC_DESeq, FC_edgeR),digits=4)))
+text(FC_DESeq, FC_edgeR, gene_symbols, pos = 3)
+
+plot(FC_edgeR, FC_limma, main = paste("r = ", signif(cor(FC_edgeR, FC_limma),digits=4)))
+text(FC_edgeR, FC_limma, gene_symbols, pos = 3)
+
+dev.off()
+
+
+
