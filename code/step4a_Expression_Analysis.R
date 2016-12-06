@@ -195,6 +195,14 @@ if (DE_method == "limma"){
   design = model.matrix(~Treatment + Region + Hemisphere + RIN, data=datMeta)
   fit <- lmFit(datExprvoom, design)
   fit <- eBayes(fit, trend=TRUE)
+  
+  n_genes = dim(datExpr)[1]
+  limma_all = topTable(fit, coef=2,genelist = datProbes$ensembl_gene_id, number = n_genes)
+  limma_all = limma_all[rownames(datExpr),]
+  FC_limma_all = limma_all$logFC
+  
+  limma_beta = as.data.frame(fit$coefficients)$TreatmentPolyIC
+  
   reg_genes_limma=topTable(fit, coef=2,genelist = datProbes$external_gene_name,number = 15)
   reg_genes_limma=reg_genes_limma[reg_genes_limma$adj.P.Val<0.1,]
 }
@@ -213,13 +221,18 @@ y <- estimateDisp(y,design)
 keep <- rowSums(cpm(y)>1) >= 2
 y <- y[keep, , keep.lib.sizes=FALSE]
 et <- exactTest(y)
+
+glm <- glmFit(y, design)
+edgeR_genes = rownames(glm$coefficients)
+edgeR_beta = as.data.frame(glm$coefficients)$group
+
+FC_edgeR_all = as.data.frame(et$table)$logFC
+
 top_edgeR = topTags(et)
 top_edgeR = as.data.frame(top_edgeR)
 top_edgeR$Symbol = datProbes$external_gene_name[match(rownames(top_edgeR),datProbes$ensembl_gene_id)]
 top_edgeR = top_edgeR[,c(5,1:4)] #put gene symbol as first column
 top_edgeR = top_edgeR[top_edgeR$FDR<0.1,]
-
-
 
 
 
@@ -333,6 +346,9 @@ for (reg_ind in 1:length(regions)){
     
     
     #--------Find which genes significantly up/downregulated-----
+    DESeq_beta = as.data.frame(coef(dds.global))$TreatmentPolyIC
+    FC_DESeq_all = curr_res$log2FoldChange
+    
     ind_sig_genotype = which(curr_res$padj<.1)
     dge = as.data.frame(curr_res[ind_sig_genotype,c("gene", "log2FoldChange", "pvalue", "padj","hsapiens_homolog")])
     dge[,2:4]=apply(dge[,2:4],2,signif,2)
@@ -506,16 +522,30 @@ FC_edgeR = reg_genes_edgeR$logFC
 
 pdf(file="../figures/DE-comparisons.pdf")
 
-plot(FC_DESeq, FC_limma, main = paste("r = ", signif(cor(FC_DESeq, FC_limma),digits=4)))
+plot(FC_DESeq, FC_limma, main = paste("Sig only FC, r = ", signif(cor(FC_DESeq, FC_limma),digits=4)))
 text(FC_DESeq, FC_limma, gene_symbols, pos = 3)
 
-plot(FC_DESeq, FC_edgeR, main = paste("r = ", signif(cor(FC_DESeq, FC_edgeR),digits=4)))
+plot(FC_DESeq, FC_edgeR, main = paste("Sig only FC, r = ", signif(cor(FC_DESeq, FC_edgeR),digits=4)))
 text(FC_DESeq, FC_edgeR, gene_symbols, pos = 3)
 
-plot(FC_edgeR, FC_limma, main = paste("r = ", signif(cor(FC_edgeR, FC_limma),digits=4)))
+plot(FC_edgeR, FC_limma, main = paste("Sig only FC, r = ", signif(cor(FC_edgeR, FC_limma),digits=4)))
 text(FC_edgeR, FC_limma, gene_symbols, pos = 3)
 
-dev.off()
+# ----Compare differential expression (FC) across all genes----
 
+# edgeR_beta eliminates some genes when running glm -> use only genes returned by all 3 methods
+keep_inds = match(edgeR_genes,rownames(datExpr))
+
+plot(FC_DESeq_all[keep_inds], FC_limma_all[keep_inds], main = paste("FC across all genes, r = ", signif(cor(FC_DESeq_all[keep_inds], FC_limma_all[keep_inds]),digits=4)))
+plot(FC_DESeq_all[keep_inds], FC_edgeR_all, main = paste("FC across all genes, r = ", signif(cor(FC_DESeq_all[keep_inds], FC_edgeR_all),digits=4)))
+plot(FC_edgeR_all, FC_limma_all[keep_inds], main = paste("FC across all genes, r = ", signif(cor(FC_edgeR_all, FC_limma_all[keep_inds]),digits=4)))
+
+# -----Compare effect sizes across all genes-----
+plot(DESeq_beta[keep_inds], limma_beta[keep_inds], main = paste("Effect sizes across all genes, r = ", signif(cor(DESeq_beta[keep_inds], limma_beta[keep_inds]),digits=4)))
+plot(DESeq_beta[keep_inds], edgeR_beta, main = paste("Effect sizes across all genes, r = ", signif(cor(DESeq_beta[keep_inds], edgeR_beta),digits=4)))
+plot(edgeR_beta, limma_beta[keep_inds], main = paste("Effect sizes across all genes, r = ", signif(cor(edgeR_beta, limma_beta[keep_inds]),digits=4)))
+
+
+dev.off()
 
 
