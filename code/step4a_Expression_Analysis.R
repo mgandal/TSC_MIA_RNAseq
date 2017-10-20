@@ -64,7 +64,6 @@ if(FALSE) {
   save(file="../data/kallisoForDGE.Rdata", datExpr.kalliso, datMeta,datProbes, txi)
 }
 
-
 load("../data/kallisoForDGE.Rdata")
 
 dds = DESeqDataSetFromTximport(txi, datMeta,design = ~Treatment + Region + Hemisphere + RIN + seqPC1 + seqPC2)
@@ -76,6 +75,7 @@ dds = dds[genes_to_keep,]
 datProbes = datProbes[genes_to_keep,]
 
 
+pdf("../figures/Fig1-QC.pdf"); par(mfrow=c(2,2))
 #QC, Normalization
 datExpr = assay(vst(dds))
 par(mfrow=c(2,1))
@@ -95,6 +95,11 @@ outliers <- (Z.K > mean(Z.K)+sdout*sd(Z.K))|(Z.K < mean(Z.K)-sdout*sd(Z.K))
 print(paste("There are ",sum(outliers)," outliers samples based on a bicor distance sample network connectivity standard deviation above ",sdout,sep="")); print(colnames(datExpr)[outliers]); print(table(outliers))
 plot(Z.K, col = as.numeric(colData(dds)$Region), pch=19, main="Outlier detection", ylab="Network connectivity (z score)")
 abline(h=-2, lty=2)
+dev.off()
+
+
+
+
 
 
 
@@ -108,8 +113,11 @@ normalizationFactors(dds) <- exp(cqn.dat$glm.offset)
 no_wt = datMeta$Genotype=="Het"
 dds = dds[,no_wt]
 
+
+pdf("../figures/Fig2-DGE.pdf",onefile=T)
+
 ##DESeq2: Calculate DGE
-dds <- DESeq(dds,betaPrior = T)
+dds <- DESeq(dds,betaPrior = F)
 res.all <- results(dds, contrast = c("Treatment", "PolyIC", "Saline"))
 DESeq2::plotMA(res.all, ylim=c(-2,2))
 
@@ -126,7 +134,7 @@ plot(res.all$log2FoldChange, -log10(res.all$qval), xlab="log2 Fold Change", ylab
 points(res.all$log2FoldChange[res.all$qval<.1], -log10(res.all$qval[res.all$qval<.1]),pch=19,col="red", cex=.7)
 text(res.all$log2FoldChange[res.all$qval<.1], -log10(res.all$qval[res.all$qval<.1]), labels = datProbes$external_gene_name[res.all$qval<.1],cex=.6, pos = 3)
 abline(h=-log10(.1), lty=2)
-
+dev.off()
 
 #Plot Top Individual Genes
 gene_plot = list()
@@ -160,6 +168,7 @@ dev.off()
 
 
 
+pdf("../figures/Fig4-DGE_regional.pdf",width = 12, height=8)
 
 #Calculate DGE within each region separately
 res.region = vector(mode="list",length = 4)
@@ -291,87 +300,5 @@ plot.up = ggplot(celltype_results[celltype_results$Change=="Up",],aes(x=CellType
 
 grid.arrange(grobs=list(plot.down, plot.up), layout_matrix=rbind(c(1,1,2,2,2),c(1,1,2,2,2)), ncol=2)
 
-
-
-go_down = go_results[go_results$Change=="Down",]
-go_down$p.value = as.numeric(go_down$p.value)
-go_down$logPval = -log10(go_down$p.value)
-ggplot(go_results,aes(x=term.name, y=-log10(p.value))) + geom_bar(stat="identity") + coord_flip()
-
-
-+ coord_flip() +
-    xlab("") + geom_abline(slope = 0, intercept = -log10(.05), lty=2, lwd=.5) + theme(axis.text.y = element_text(size=6))
-
-
-
-
-
-    query = rownames(datExpr)[colors=="midnightblue"]
-
-    go.mus = gprofiler(query, organism="mmusculus") #, custom_bg = datProbes$ensembl_gene_id,
-                       correction_method = "fdr",hier_filtering = "moderate", ordered_query = T, significant = T, exclude_iea = F,
-                       region_query = F, max_p_value = 0.05, max_set_size=1000, numeric_ns = "",
-                       include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
-    go = go.mus[order(go.mus$p.value),]
-
-    saveRDS(go, file = paste("../data/regulated genes lists QC/go down", curr_reg, contrast, ".RDS"))
-
-
-    #read in saved GO
-    go <- readRDS(paste("../data/regulated genes lists QC/go down", curr_reg, contrast, ".RDS"))
-
-    if (nrow(go) > 0){
-      par(oma=c(0,15,0,0))
-      ttl = paste("GO downregulated", contrast, curr_reg)
-      n_go_show = min(10, dim(dge.down)[1])
-      bp = barplot(-log10(as.numeric(na.omit(go$p.value[n_go_show:1]))), main = ttl, horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
-      axis(2,at=bp,labels=na.omit(go$term.name[n_go_show:1]),tick=FALSE,las=2,cex.axis=.7);
-      abline(v=-log10(0.05), col="red", lwd=2,lty=2)
-    }
-
-
-    #upregulated GO
-
-    #access gprofiler for GO
-    query = rownames(dge.up)[order(dge.up$log2FoldChange, decreasing = T)]
-
-    go.mus = gprofiler(query, organism="mmusculus", custom_bg = datProbes$ensembl_gene_id,
-                       correction_method = "fdr",hier_filtering = "moderate", ordered_query = T, significant = T, exclude_iea = F,
-                       region_query = F, max_p_value = 0.05, max_set_size=1000, numeric_ns = "",
-                       include_graph = F,src_filter = c("GO", "KEGG", "REACTOME"))
-
-    go = go.mus[order(go.mus$p.value),]
-
-    saveRDS(go, file = paste("../data/regulated genes lists QC/go up", curr_reg, contrast, ".RDS"))
-
-
-
-    #read in saved GO
-    go <- readRDS(paste("../data/regulated genes lists QC/go up", curr_reg, contrast, ".RDS"))
-
-
-    if (nrow(go) > 0){
-      par(oma=c(0,15,0,0));
-      ttl = paste("GO upregulated", contrast, curr_reg)
-      n_go_show = min(10, dim(dge.up)[1])
-      bp = barplot(-log10(as.numeric(na.omit(go$p.value[n_go_show:1]))), main=ttl, horiz=T, yaxt='n', col="blue", xlab='-log10(p)',cex.main=0.7, cex.axis = .7)
-      axis(2,at=bp,labels=na.omit(go$term.name[n_go_show:1]),tick=FALSE,las=2,cex.axis=.7);
-      abline(v=-log10(0.05), col="red", lwd=2,lty=2)
-    }
-
-
-    #tally up total upregulated and downregulated
-    n_up = dim(dge.up)[1]
-    n_down = dim(dge.down)[1]
-
-    if (contrast == "genotype") {
-      tally_genotype[reg_ind,] <- c(n_up, n_down)
-    }else if (contrast == "treatment"){
-      tally_treatment[reg_ind,] <- c(n_up, n_down)
-    }
-  }
-}
-
-write.csv(tally_genotype, file = "../data/regulated genes lists QC/tally_genotype.csv"); write.csv(tally_treatment, file = "../data/regulated genes lists QC/tally_treatment.csv")
 
 dev.off()
